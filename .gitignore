@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Env / secrets
+.env
+.env.local
+*.env
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Uploads (archivos de usuarios)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Build / bundles
+dist/
+dist-test/
+.expo/
+web-build/
+*.hbc
+
+# Firebase / credenciales (no commitear)
+google-services.json
+GoogleService-Info.plist
+*-key.json
+serviceAccount*.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Mongo en memoria (binarios descargados)
+.cache/
+.mongodb-binaries/

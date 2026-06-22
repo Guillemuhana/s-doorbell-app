@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "S-Doorbell",
+    "slug": "s-doorbell",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sdoorbell.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "S-Doorbell necesita la cámara para escanear el QR de tu timbre.",
+        "NSPhotoLibraryUsageDescription": "S-Doorbell necesita acceso a tus fotos para subir la foto de tu casa.",
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.sdoorbell.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "INTERNET"
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#007AFF",
+          "sounds": [
+            "./assets/doorbell.wav"
+          ],
+          "androidMode": "default",
+          "androidCollapsedTitle": "S-Doorbell"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "S-Doorbell usa la cámara para escanear el código QR."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "S-Doorbell usa tus fotos para la imagen de tu casa."
+        }
+      ],
+      "expo-asset"
+    ],
+    "extra": {
+      "API_BASE_URL": "http://192.168.0.184:5000",
+      "eas": {
+        "projectId": "tu-eas-project-id"
+      }
+    }
+  }
+}

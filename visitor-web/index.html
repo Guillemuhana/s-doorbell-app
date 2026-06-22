@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>S-Doorbell — Tocar Timbre</title>
+  <meta name="description" content="Timbre digital inteligente" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="S-Doorbell" />
+  <meta property="og:description" content="Toca el timbre digital" />
+  <meta property="og:type" content="website" />
+
+  <style>
+    :root {
+      --blue: #007AFF;
+      --blue-dark: #0056CC;
+      --blue-glow: rgba(0, 122, 255, 0.35);
+      --success: #34C759;
+      --error: #FF3B30;
+      --white: #FFFFFF;
+      --gray-400: #8E8E93;
+      --gray-600: #48484A;
+      --gray-800: #2C2C2E;
+      --gray-900: #1C1C1E;
+      --black: #000000;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font);
+      overflow-x: hidden;
+    }
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+    }
+
+    /* Ambient glow effects */
+    .glow-top {
+      position: fixed; top: -100px; left: 50%;
+      transform: translateX(-50%);
+      width: 400px; height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,122,255,0.15) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    .glow-bottom {
+      position: fixed; bottom: -150px; right: -100px;
+      width: 350px; height: 350px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,122,255,0.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .page-content {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 24px;
+    }
+
+    /* Brand header */
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      opacity: 0; animation: fadeDown 0.6s ease forwards;
+    }
+    .brand-icon { font-size: 24px; }
+    .brand-name {
+      font-size: 18px; font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--white), rgba(255,255,255,0.7));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* House card */
+    .house-card {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      overflow: hidden;
+      opacity: 0; animation: fadeUp 0.6s ease 0.2s forwards;
+    }
+
+    .house-photo {
+      width: 100%; height: 180px;
+      object-fit: cover; display: block;
+      background: rgba(0,122,255,0.1);
+    }
+
+    .house-photo-placeholder {
+      width: 100%; height: 180px;
+      background: linear-gradient(135deg, rgba(0,122,255,0.15), rgba(0,86,204,0.08));
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+    }
+    .house-photo-placeholder-icon { font-size: 48px; }
+    .house-photo-placeholder-text { color: var(--gray-400); font-size: 13px; }
+
+    .house-info { padding: 20px; }
+    .house-owner { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .house-address { font-size: 14px; color: var(--gray-400); margin-top: 6px; }
+
+    /* Visitor name input */
+    .name-section {
+      width: 100%;
+      opacity: 0; animation: fadeUp 0.6s ease 0.35s forwards;
+    }
+    .name-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--gray-400); text-transform: uppercase;
+      margin-bottom: 8px; display: block;
+    }
+    .name-input {
+      width: 100%; height: 52px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      color: var(--white); font-size: 16px;
+      padding: 0 16px; outline: none;
+      font-family: var(--font);
+      transition: border-color 0.2s;
+    }
+    .name-input::placeholder { color: var(--gray-600); }
+    .name-input:focus { border-color: rgba(0,122,255,0.5); }
+
+    /* THE BUTTON */
+    .ring-section {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+      opacity: 0; animation: fadeUp 0.6s ease 0.5s forwards;
+    }
+
+    .ring-btn-wrapper {
+      position: relative;
+      width: 200px; height: 200px;
+    }
+
+    .ring-btn-glow {
+      position: absolute; inset: -20px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--blue-glow) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .ring-btn {
+      width: 200px; height: 200px;
+      border-radius: 50%; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      position: relative; z-index: 1;
+      box-shadow: 0 8px 32px rgba(0,122,255,0.4), 0 2px 8px rgba(0,0,0,0.4);
+      transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s;
+      -webkit-user-select: none; user-select: none;
+    }
+
+    .ring-btn:hover .ring-btn-glow { opacity: 1; }
+    .ring-btn:active { transform: scale(0.93); box-shadow: 0 4px 16px rgba(0,122,255,0.3); }
+    .ring-btn.ringing { transform: scale(0.95); opacity: 0.8; cursor: not-allowed; }
+    .ring-btn.success { background: linear-gradient(135deg, var(--success), #27A24B); box-shadow: 0 8px 32px rgba(52,199,89,0.4); }
+
+    .ring-btn-emoji { font-size: 52px; pointer-events: none; }
+    .ring-btn-text {
+      color: var(--white); font-size: 13px; font-weight: 900;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .ring-hint { color: var(--gray-400); font-size: 13px; text-align: center; line-height: 1.5; }
+
+    /* Status messages */
+    .status-msg {
+      width: 100%; padding: 14px 18px;
+      border-radius: 16px; font-size: 14px; font-weight: 600;
+      text-align: center; display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .status-msg.show { display: block; }
+    .status-msg.success { background: rgba(52,199,89,0.15); color: var(--success); border: 1px solid rgba(52,199,89,0.3); }
+    .status-msg.error { background: rgba(255,59,48,0.15); color: var(--error); border: 1px solid rgba(255,59,48,0.3); }
+
+    /* Loading spinner */
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Error state */
+    .error-page {
+      text-align: center; opacity: 0;
+      animation: fadeUp 0.6s ease forwards;
+    }
+    .error-icon { font-size: 64px; margin-bottom: 16px; }
+    .error-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .error-text { color: var(--gray-400); font-size: 15px; }
+
+    /* Footer */
+    .footer {
+      color: var(--gray-600); font-size: 12px; text-align: center;
+      opacity: 0; animation: fadeUp 0.6s ease 0.7s forwards;
+    }
+    .footer a { color: var(--blue); text-decoration: none; }
+
+    /* Loading state */
+    .loading-state { text-align: center; opacity: 0; animation: fadeIn 0.4s ease forwards; }
+    .loading-title { font-size: 16px; color: var(--gray-400); margin-top: 16px; }
+
+    /* Animations */
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(15deg); } 40% { transform: rotate(-15deg); } 60% { transform: rotate(10deg); } 80% { transform: rotate(-10deg); } }
+    .ring-anim { animation: ring 0.5s ease; }
+
+    @media (max-width: 380px) {
+      .ring-btn, .ring-btn-wrapper { width: 170px; height: 170px; }
+      .ring-btn-emoji { font-size: 42px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-top"></div>
+  <div class="glow-bottom"></div>
+  <div id="app">
+    <div class="page-content">
+      <div id="loading-state" class="loading-state">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="loading-title">Cargando timbre...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = ''; // Served from same domain
+    const qrId = window.location.pathname.split('/').filter(Boolean).pop();
+
+    let casa = null;
+    let ringing = false;
+
+    // ─── Fetch visitor info ───────────────────────────────────────────────────
+    async function loadCasa() {
+      try {
+        const res = await fetch(`${API_BASE}/api/visitor/${qrId}`);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'QR no válido');
+        casa = data.casa;
+        render();
+      } catch (err) {
+        renderError(err.message);
+      }
+    }
+
+    // ─── Ring doorbell ────────────────────────────────────────────────────────
+    async function ringDoorbell() {
+      if (ringing) return;
+      ringing = true;
+
+      const btn = document.getElementById('ring-btn');
+      const hint = document.getElementById('ring-hint');
+      const statusMsg = document.getElementById('status-msg');
+      const visitorName = document.getElementById('visitor-name')?.value?.trim() || '';
+
+      btn.classList.add('ringing');
+      btn.innerHTML = `<div class="spinner"></div>`;
+      hint.textContent = 'Enviando timbrazo...';
+      statusMsg.classList.remove('show', 'success', 'error');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/visitor/${qrId}/ring`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorName }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Error enviando timbrazo');
+
+        btn.classList.remove('ringing');
+        btn.classList.add('success');
+        btn.innerHTML = `<span class="ring-btn-emoji ring-anim">✅</span><span class="ring-btn-text">Enviado!</span>`;
+        hint.textContent = '¡Timbre enviado! El dueño fue notificado.';
+
+        statusMsg.textContent = '🔔 El timbre fue tocado correctamente.';
+        statusMsg.classList.add('show', 'success');
+
+        // Reset after 5 seconds
+        setTimeout(() => {
+          btn.classList.remove('success');
+          btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
+          hint.textContent = '¿Necesitas tocar nuevamente?';
+          statusMsg.classList.remove('show', 'success');
+          ringing = false;
+        }, 5000);
+
+      } catch (err) {
+        btn.classList.remove('ringing');
+        btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
+        hint.textContent = 'Intenta nuevamente';
+        statusMsg.textContent = '⚠️ ' + (err.message || 'No se pudo enviar el timbrazo.');
+        statusMsg.classList.add('show', 'error');
+
+        setTimeout(() => { statusMsg.classList.remove('show', 'error'); }, 5000);
+        ringing = false;
+      }
+    }
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="brand">
+            <span class="brand-icon">🔔</span>
+            <span class="brand-name">S-Doorbell</span>
+          </div>
+
+          <div class="house-card">
+            ${casa.foto_fachada
+              ? `<img src="${casa.foto_fachada}" alt="Fachada" class="house-photo" />`
+              : `<div class="house-photo-placeholder">
+                  <span class="house-photo-placeholder-icon">🏠</span>
+                  <span class="house-photo-placeholder-text">Casa de ${casa.nombreCompleto}</span>
+                </div>`
+            }
+            <div class="house-info">
+              <div class="house-owner">${escapeHtml(casa.nombreCompleto)}</div>
+              ${casa.direccion ? `<div class="house-address">📍 ${escapeHtml(casa.direccion)}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="name-section">
+            <label class="name-label" for="visitor-name">Tu nombre (opcional)</label>
+            <input
+              type="text" id="visitor-name"
+              class="name-input"
+              placeholder="¿Cómo te llamas?"
+              maxlength="60"
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="ring-section">
+            <div class="ring-btn-wrapper">
+              <div class="ring-btn-glow"></div>
+              <button class="ring-btn" id="ring-btn" onclick="ringDoorbell()" aria-label="Tocar timbre">
+                <span class="ring-btn-emoji">🔔</span>
+                <span class="ring-btn-text">Tocar Timbre</span>
+              </button>
+            </div>
+            <p class="ring-hint" id="ring-hint">Toca el botón para avisar que estás en la puerta</p>
+          </div>
+
+          <div class="status-msg" id="status-msg"></div>
+
+          <p class="footer">
+            Powered by <a href="#">S-Doorbell</a> · Timbre digital inteligente
+          </p>
+        </div>
+      `;
+
+      // Hover glow effect for desktop
+      const btn = document.getElementById('ring-btn');
+      const glow = btn?.previousElementSibling;
+      if (btn && glow) {
+        btn.addEventListener('mouseenter', () => glow.style.opacity = '1');
+        btn.addEventListener('mouseleave', () => glow.style.opacity = '0');
+      }
+    }
+
+    function renderError(msg) {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="error-page">
+            <div class="error-icon">🚫</div>
+            <div class="error-title">QR no válido</div>
+            <div class="error-text">${escapeHtml(msg || 'Este timbre digital no existe o fue desactivado.')}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    if (!qrId || qrId === 'visit') {
+      renderError('URL inválida. Escanea el QR del timbre correctamente.');
+    } else {
+      loadCasa();
+    }
+  </script>
+</body>
+</html>

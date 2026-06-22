@@ -1,0 +1,89 @@
+// src/screens/ProfileScreen.js — tab Perfil
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
+import { notificacionesAPI } from '../utils/api';
+import Logo from '../components/Logo';
+import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
+
+const Row = ({ icon, label, subtitle, onPress, danger }) => (
+  <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
+    <View style={[styles.rowIcon, danger && { backgroundColor: 'rgba(255,59,48,0.12)' }]}>
+      <Ionicons name={icon} size={18} color={danger ? COLORS.error : COLORS.primary} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={[styles.rowLabel, danger && { color: COLORS.error }]}>{label}</Text>
+      {subtitle && <Text style={styles.rowSub}>{subtitle}</Text>}
+    </View>
+    {!danger && <Ionicons name="chevron-forward" size={18} color={COLORS.gray300} />}
+  </TouchableOpacity>
+);
+
+const ProfileScreen = ({ navigation }) => {
+  const { usuario, logout } = useAuth();
+
+  const cerrarSesion = () => {
+    Alert.alert('Cerrar sesión', '¿Seguro que querés salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: logout },
+    ]);
+  };
+
+  const probarNotificacion = async () => {
+    try { await notificacionesAPI.testNotification(); Alert.alert('✅', 'Notificación de prueba enviada.'); }
+    catch { Alert.alert('Error', 'No se pudo enviar la notificación.'); }
+  };
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Avatar + nombre */}
+        <View style={styles.profileHead}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{usuario?.nombre?.[0]?.toUpperCase()}{usuario?.apellido?.[0]?.toUpperCase()}</Text>
+          </View>
+          <Text style={styles.name}>{usuario?.nombre} {usuario?.apellido}</Text>
+          <Text style={styles.email}>{usuario?.email}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Row icon="person-outline" label="Editar perfil" subtitle="Nombre, teléfono, contraseña" onPress={() => navigation.navigate('EditProfile')} />
+          <Row icon="time-outline" label="Historial de timbrazos" onPress={() => navigation.navigate('Notifications')} />
+          <Row icon="notifications-outline" label="Probar notificación" onPress={probarNotificacion} />
+        </View>
+
+        <View style={styles.card}>
+          <Row icon="log-out-outline" label="Cerrar sesión" danger onPress={cerrarSesion} />
+        </View>
+
+        <View style={styles.footer}>
+          <Logo size="sm" />
+          <Text style={styles.version}>v1.0.0</Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scroll: { padding: SPACING.lg, paddingBottom: SPACING['3xl'] },
+  profileHead: { alignItems: 'center', paddingVertical: SPACING.xl },
+  avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', ...SHADOWS.gold },
+  avatarText: { color: COLORS.white, fontSize: FONT_SIZES['2xl'], fontWeight: '800' },
+  name: { fontSize: FONT_SIZES.lg, fontWeight: '800', color: COLORS.text, marginTop: SPACING.md },
+  email: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, marginTop: 2 },
+  card: { backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, marginBottom: SPACING.base, overflow: 'hidden', ...SHADOWS.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.base, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border },
+  rowIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { fontSize: FONT_SIZES.base, fontWeight: '600', color: COLORS.text },
+  rowSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 1 },
+  footer: { alignItems: 'center', marginTop: SPACING.xl, gap: SPACING.xs },
+  version: { color: COLORS.textMuted, fontSize: FONT_SIZES.xs },
+});
+
+export default ProfileScreen;
