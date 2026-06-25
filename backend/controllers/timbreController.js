@@ -1,21 +1,21 @@
 // controllers/timbreController.js
-const { v4: uuidv4 } = require('uuid');
-const Timbre = require('../models/Timbre');
-const Direccion = require('../models/Direccion');
+const { getSupabase } = require('../config/supabase');
+const { mapTimbre } = require('../db/mappers');
 const { generateQRDataURL } = require('../services/qrService');
 const { getRol } = require('../utils/access');
 
-// Helper: obtiene el timbre y el rol del usuario en su dirección
+// Carga el timbre + rol del usuario en su dirección.
 const loadTimbreConRol = async (usuarioId, timbreId) => {
-  const timbre = await Timbre.findById(timbreId);
+  const sb = getSupabase();
+  const { data: timbre } = await sb.from('timbres').select('*').eq('id', timbreId).maybeSingle();
   if (!timbre) return { error: 404 };
-  const rol = await getRol(usuarioId, timbre.direccion);
+  const rol = await getRol(usuarioId, timbre.direccion_id);
   if (!rol) return { error: 403 };
   return { timbre, rol };
 };
 
 /**
- * POST /api/direcciones/:id/timbres  (solo dueño)
+ * POST /api/direcciones/:id/timbres (solo dueño)
  */
 const crearTimbre = async (req, res, next) => {
   try {
@@ -23,44 +23,39 @@ const crearTimbre = async (req, res, next) => {
     const rol = await getRol(req.usuario._id, direccionId);
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede agregar timbres.' });
 
-    const direccion = await Direccion.findById(direccionId);
-    if (!direccion) return res.status(404).json({ error: 'Dirección no encontrada.' });
+    const sb = getSupabase();
+    const { data: timbre, error } = await sb.from('timbres')
+      .insert({ direccion_id: direccionId, nombre: req.body.nombre || 'Puerta', tipo: req.body.tipo || 'Timbre particular' })
+      .select().single();
+    if (error) throw error;
 
-    const { nombre, tipo } = req.body;
-    const timbre = await Timbre.create({
-      direccion: direccionId,
-      nombre: nombre || 'Puerta',
-      tipo: tipo || 'Timbre particular',
-    });
-
-    const qr = await generateQRDataURL(timbre.qrId);
+    const qr = await generateQRDataURL(timbre.qr_id);
     if (qr.success) {
-      timbre.qrImage = qr.dataURL;
-      await timbre.save();
+      await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
+      timbre.qr_image = qr.dataURL;
     }
-
-    res.status(201).json({ success: true, timbre });
+    res.status(201).json({ success: true, timbre: mapTimbre(timbre) });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * GET /api/timbres/:id  (miembro)
+ * GET /api/timbres/:id (miembro)
  */
 const getTimbre = async (req, res, next) => {
   try {
     const { timbre, error } = await loadTimbreConRol(req.usuario._id, req.params.id);
     if (error === 404) return res.status(404).json({ error: 'Timbre no encontrado.' });
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
-    res.json({ success: true, timbre });
+    res.json({ success: true, timbre: mapTimbre(timbre) });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * GET /api/timbres/:id/qr  (miembro)
+ * GET /api/timbres/:id/qr (miembro)
  */
 const getQR = async (req, res, next) => {
   try {
@@ -68,19 +63,19 @@ const getQR = async (req, res, next) => {
     if (error === 404) return res.status(404).json({ error: 'Timbre no encontrado.' });
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
 
-    if (!timbre.qrImage) {
-      const qr = await generateQRDataURL(timbre.qrId);
+    const sb = getSupabase();
+    if (!timbre.qr_image) {
+      const qr = await generateQRDataURL(timbre.qr_id);
       if (qr.success) {
-        timbre.qrImage = qr.dataURL;
-        await timbre.save();
+        await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
+        timbre.qr_image = qr.dataURL;
       }
     }
-
     res.json({
       success: true,
-      qrId: timbre.qrId,
-      qrImage: timbre.qrImage,
-      visitorUrl: `${process.env.VISITOR_BASE_URL}/${timbre.qrId}`,
+      qrId: timbre.qr_id,
+      qrImage: timbre.qr_image,
+      visitorUrl: `${process.env.VISITOR_BASE_URL}/${timbre.qr_id}`,
     });
   } catch (error) {
     next(error);
@@ -88,7 +83,7 @@ const getQR = async (req, res, next) => {
 };
 
 /**
- * PUT /api/timbres/:id  (solo dueño)
+ * PUT /api/timbres/:id (solo dueño) — incluye modoGeo
  */
 const updateTimbre = async (req, res, next) => {
   try {
@@ -97,19 +92,23 @@ const updateTimbre = async (req, res, next) => {
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede editar.' });
 
-    ['nombre', 'tipo', 'activo'].forEach((f) => {
-      if (req.body[f] !== undefined) timbre[f] = req.body[f];
-    });
-    await timbre.save();
+    const updates = { updated_at: new Date().toISOString() };
+    if (req.body.nombre !== undefined) updates.nombre = req.body.nombre;
+    if (req.body.tipo !== undefined) updates.tipo = req.body.tipo;
+    if (req.body.activo !== undefined) updates.activo = req.body.activo;
+    if (req.body.modoGeo !== undefined) updates.modo_geo = req.body.modoGeo;
 
-    res.json({ success: true, timbre });
+    const sb = getSupabase();
+    const { data: updated, error: uErr } = await sb.from('timbres').update(updates).eq('id', timbre.id).select().single();
+    if (uErr) throw uErr;
+    res.json({ success: true, timbre: mapTimbre(updated) });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * DELETE /api/timbres/:id  (solo dueño)
+ * DELETE /api/timbres/:id (solo dueño)
  */
 const deleteTimbre = async (req, res, next) => {
   try {
@@ -118,7 +117,8 @@ const deleteTimbre = async (req, res, next) => {
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede eliminar.' });
 
-    await timbre.deleteOne();
+    const sb = getSupabase();
+    await sb.from('timbres').delete().eq('id', timbre.id);
     res.json({ success: true, message: 'Timbre eliminado.' });
   } catch (error) {
     next(error);
@@ -126,7 +126,7 @@ const deleteTimbre = async (req, res, next) => {
 };
 
 /**
- * POST /api/timbres/:id/regenerar-qr  (solo dueño)
+ * POST /api/timbres/:id/regenerar-qr (solo dueño)
  */
 const regenerarQR = async (req, res, next) => {
   try {
@@ -135,31 +135,26 @@ const regenerarQR = async (req, res, next) => {
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede regenerar.' });
 
-    const nuevoQrId = uuidv4();
+    const { randomUUID } = require('crypto');
+    const nuevoQrId = randomUUID();
     const qr = await generateQRDataURL(nuevoQrId);
     if (!qr.success) return res.status(500).json({ error: 'Error generando QR.' });
 
-    timbre.qrId = nuevoQrId;
-    timbre.qrImage = qr.dataURL;
-    await timbre.save();
+    const sb = getSupabase();
+    const { data: updated } = await sb.from('timbres')
+      .update({ qr_id: nuevoQrId, qr_image: qr.dataURL, updated_at: new Date().toISOString() })
+      .eq('id', timbre.id).select().single();
 
     res.json({
       success: true,
-      qrId: timbre.qrId,
-      qrImage: timbre.qrImage,
-      visitorUrl: `${process.env.VISITOR_BASE_URL}/${timbre.qrId}`,
-      timbre,
+      qrId: updated.qr_id,
+      qrImage: updated.qr_image,
+      visitorUrl: `${process.env.VISITOR_BASE_URL}/${updated.qr_id}`,
+      timbre: mapTimbre(updated),
     });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = {
-  crearTimbre,
-  getTimbre,
-  getQR,
-  updateTimbre,
-  deleteTimbre,
-  regenerarQR,
-};
+module.exports = { crearTimbre, getTimbre, getQR, updateTimbre, deleteTimbre, regenerarQR };

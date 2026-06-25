@@ -1,12 +1,17 @@
 // src/utils/notifications.js
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform, Alert } from 'react-native';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─── Configure notification handler ──────────────────────────────────────────
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldShowAlert: true, // compat SDK anteriores
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -38,34 +43,37 @@ export const registerForPushNotifications = async () => {
     return null;
   }
 
-  try {
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: 'tu-eas-project-id', // Replace with your EAS project ID
-    });
-
-    const pushToken = tokenData.data;
-
-    if (Platform.OS === 'android') {
+  // Canal de Android (necesario también para notificaciones LOCALES)
+  if (Platform.OS === 'android') {
+    try {
       await Notifications.setNotificationChannelAsync('doorbell', {
         name: 'Timbre',
         description: 'Alertas cuando alguien toca el timbre',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#007AFF',
-        sound: 'doorbell',
+        lightColor: '#2E9BE0',
         enableVibrate: true,
         showBadge: true,
       });
-
       await Notifications.setNotificationChannelAsync('default', {
         name: 'General',
         importance: Notifications.AndroidImportance.DEFAULT,
       });
-    }
+    } catch {}
+  }
 
-    return pushToken;
+  // Token push REMOTO: solo si hay un projectId de EAS válido (no en Expo Go).
+  // Hoy usamos notificaciones LOCALES (RingWatcher), así que esto es opcional.
+  const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+  if (!UUID_RE.test(projectId || '')) {
+    return null; // sin EAS project → sin token remoto, no es un error
+  }
+
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData.data;
   } catch (error) {
-    console.error('Error getting push token:', error);
+    console.warn('No se pudo obtener push token remoto:', error?.message);
     return null;
   }
 };
@@ -97,6 +105,6 @@ export const clearBadge = async () => {
 export const scheduleLocalNotification = async ({ title, body, data }) => {
   await Notifications.scheduleNotificationAsync({
     content: { title, body, data, sound: true },
-    trigger: { seconds: 1 },
+    trigger: null, // inmediata
   });
 };

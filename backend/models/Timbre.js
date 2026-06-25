@@ -36,6 +36,11 @@ const TimbreSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Modo geo: pedir la ubicación al visitante para verificar que está en la puerta
+    modoGeo: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

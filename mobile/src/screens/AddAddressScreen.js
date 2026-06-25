@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { direccionesAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
@@ -73,7 +73,7 @@ const AddAddressScreen = ({ route, navigation }) => {
       <View style={styles.topBar}>
         <Text style={styles.headerTitle}>{isEdit ? 'Editar dirección' : 'Nueva dirección'}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={26} color={COLORS.gray500} />
+          <MaterialCommunityIcons name="close" size={26} color={COLORS.gray500} />
         </TouchableOpacity>
       </View>
 

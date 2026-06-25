@@ -2,13 +2,13 @@
 // Tema S-Doorbell — claro, con dorado como color de acción y azul de marca (logo).
 
 export const COLORS = {
-  // Acción principal (dorado de los mockups)
-  primary: '#E0A82E',
-  primaryDark: '#C68A1E',
-  primaryLight: '#F0C65A',
-  primarySoft: '#FBF3DF', // fondo suave dorado
+  // Acción principal = celeste del logo S-doorbell
+  primary: '#2E9BE0',
+  primaryDark: '#1E7BC0',
+  primaryLight: '#7CC6F0',
+  primarySoft: '#E6F3FB', // fondo suave celeste
 
-  // Marca (azul del logo S-doorbell / QR)
+  // Marca (mismo celeste del logo)
   brand: '#2E9BE0',
   brandDark: '#1E7BC0',
   brandSoft: '#E6F3FB',
@@ -33,19 +33,20 @@ export const COLORS = {
   error: '#FF3B30',
   info: '#2E9BE0',
 
-  // Superficies (modo claro, el de los mockups)
-  background: '#F2F2F4',
+  // Superficies (look pro/corporativo)
+  background: '#F5F6F8',
   surface: '#FFFFFF',
   surfaceCard: '#FFFFFF',
 
-  // Barra de tabs oscura (mockup)
-  tabBar: '#2A2A2E',
+  // Barra de tabs (blanca, look limpio)
+  tabBar: '#FFFFFF',
 
   // Texto
-  text: '#19191C',
-  textSecondary: '#76767E',
-  textMuted: '#A0A0A8',
-  border: '#E2E2E6',
+  text: '#16181D',
+  textSecondary: '#6B7280',
+  textMuted: '#9AA0AA',
+  border: '#ECEDF0',
+  borderStrong: '#E0E2E7',
 
   // Transparencias
   overlay: 'rgba(0, 0, 0, 0.5)',
@@ -117,7 +118,8 @@ export const SHADOWS = {
     elevation: 10,
   },
   gold: {
-    shadowColor: '#E0A82E',
+    // (mantengo el nombre por compatibilidad; ahora es glow celeste)
+    shadowColor: '#2E9BE0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 12,

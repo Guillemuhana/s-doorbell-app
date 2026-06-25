@@ -10,7 +10,7 @@ const morgan = require('morgan');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 
-const connectDB = require('./config/database');
+const { checkSupabase } = require('./config/supabase');
 const logger = require('./config/logger');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -23,11 +23,14 @@ const visitorRoutes = require('./routes/visitor');
 const direccionRoutes = require('./routes/direcciones');
 const timbreRoutes = require('./routes/timbres');
 const invitacionRoutes = require('./routes/invitaciones');
+const callRoutes = require('./routes/calls');
 
 const app = express();
 
-// ─── Connect Database ────────────────────────────────────────────────────────
-connectDB();
+// ─── Verificar conexión a Supabase ───────────────────────────────────────────
+checkSupabase()
+  .then(() => logger.info('✅ Supabase conectado'))
+  .catch((e) => logger.error('❌ Supabase no disponible:', e.message));
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
 app.use(helmet({
@@ -49,12 +52,30 @@ const globalLimiter = rateLimit({
   message: { error: 'Demasiadas solicitudes, intenta más tarde.' },
   standardHeaders: true,
   legacyHeaders: false,
+  // El signaling de videollamada hace polling frecuente: tiene su propio limiter.
+  skip: (req) => req.path.startsWith('/api/calls'),
 });
 
 const ringLimiter = rateLimit({
   windowMs: 60000, // 1 minute
   max: 5,
   message: { error: 'Límite de timbrazos alcanzado, espera un minuto.' },
+});
+
+// Polling de signaling: límite alto (cada lado consulta cada ~1.5s).
+const callLimiter = rateLimit({
+  windowMs: 60000,
+  max: 240,
+  message: { error: 'Demasiadas solicitudes de llamada.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Iniciar videollamada: límite estricto (genera push a los residentes).
+const callStartLimiter = rateLimit({
+  windowMs: 60000,
+  max: 5,
+  message: { error: 'Límite de llamadas alcanzado, espera un minuto.' },
 });
 
 app.use(globalLimiter);
@@ -65,8 +86,17 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ─── Static Files ─────────────────────────────────────────────────────────────
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/visit', express.static(path.join(__dirname, '../visitor-web')));
+// (Las imágenes ahora viven en Supabase Storage; no se sirve /uploads.)
+// visitor-web puede estar dentro de backend (deploy) o como hermano (local).
+const fs = require('fs');
+const VISITOR_DIR = fs.existsSync(path.join(__dirname, 'visitor-web'))
+  ? path.join(__dirname, 'visitor-web')
+  : path.join(__dirname, '../visitor-web');
+app.use('/visit', express.static(VISITOR_DIR));
+// SPA fallback: cualquier /visit/:qrId sirve la página del visitante
+app.get('/visit/:qrId', (req, res) => {
+  res.sendFile(path.join(VISITOR_DIR, 'index.html'));
+});
 
 // ─── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
@@ -77,6 +107,8 @@ app.use('/api/direcciones', direccionRoutes);
 app.use('/api/timbres', timbreRoutes);
 app.use('/api/invitaciones', invitacionRoutes);
 app.use('/api/visitor', ringLimiter, visitorRoutes);
+app.use('/api/calls/start', callStartLimiter);
+app.use('/api/calls', callLimiter, callRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -98,23 +130,22 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-  logger.info(`🚀 S-Doorbell API running on port ${PORT} [${process.env.NODE_ENV}]`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    logger.info('Server closed.');
-    process.exit(0);
+// En Vercel (serverless) NO se llama listen: se exporta la app como handler.
+// En local / Render (servidor persistente) sí se levanta el puerto.
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  const server = app.listen(PORT, () => {
+    logger.info(`🚀 S-Doorbell API running on port ${PORT} [${process.env.NODE_ENV}]`);
   });
-});
 
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Rejection:', err);
-  server.close(() => process.exit(1));
-});
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    server.close(() => { logger.info('Server closed.'); process.exit(0); });
+  });
+  process.on('unhandledRejection', (err) => {
+    logger.error('Unhandled Rejection:', err);
+    server.close(() => process.exit(1));
+  });
+}
 
 module.exports = app;

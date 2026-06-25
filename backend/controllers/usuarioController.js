@@ -1,13 +1,11 @@
 // controllers/usuarioController.js
-const path = require('path');
-const fs = require('fs');
-const Usuario = require('../models/Usuario');
-const { generateQRDataURL } = require('../services/qrService');
-const logger = require('../config/logger');
+const bcrypt = require('bcryptjs');
+const { getSupabase } = require('../config/supabase');
+const { mapUsuario } = require('../db/mappers');
+const { uploadImagen, borrarImagen } = require('../services/storageService');
 
-// Helper: ensure user can only access their own data
 const checkOwnership = (req, res, userId) => {
-  if (req.usuario._id.toString() !== userId.toString()) {
+  if (req.usuario._id !== userId) {
     res.status(403).json({ error: 'No tienes permiso para esta acción.' });
     return false;
   }
@@ -20,11 +18,10 @@ const checkOwnership = (req, res, userId) => {
 const getUsuario = async (req, res, next) => {
   try {
     if (!checkOwnership(req, res, req.params.id)) return;
-
-    const usuario = await Usuario.findById(req.params.id);
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
-
-    res.json({ success: true, usuario });
+    const sb = getSupabase();
+    const { data } = await sb.from('usuarios').select('*').eq('id', req.params.id).maybeSingle();
+    if (!data) return res.status(404).json({ error: 'Usuario no encontrado.' });
+    res.json({ success: true, usuario: mapUsuario(data) });
   } catch (error) {
     next(error);
   }
@@ -37,33 +34,34 @@ const updateUsuario = async (req, res, next) => {
   try {
     if (!checkOwnership(req, res, req.params.id)) return;
 
-    const allowedFields = ['nombre', 'apellido', 'telefono', 'direccion'];
-    const updates = {};
-
-    allowedFields.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
+    const updates = { updated_at: new Date().toISOString() };
+    ['nombre', 'apellido', 'telefono'].forEach((f) => {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
     });
-
-    // Password change
+    // Email (normalizado). Se valida unicidad más abajo vía constraint.
+    if (req.body.email !== undefined) {
+      const email = String(req.body.email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Email inválido.' });
+      }
+      updates.email = email;
+    }
+    // Cambio de contraseña (limpia el flag de provisoria)
     if (req.body.password && req.body.password.length >= 6) {
-      const usuario = await Usuario.findById(req.params.id).select('+password');
-      usuario.password = req.body.password;
-      Object.assign(usuario, updates);
-      await usuario.save();
-      return res.json({ success: true, usuario });
+      updates.password = await bcrypt.hash(req.body.password, 12);
+      updates.forzar_cambio_password = false;
     }
 
-    const usuario = await Usuario.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
-
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
-
-    res.json({ success: true, usuario });
+    const sb = getSupabase();
+    const { data, error } = await sb.from('usuarios').update(updates).eq('id', req.params.id).select().single();
+    if (error) {
+      // 23505 = violación de unique (email ya registrado)
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Ese email ya está registrado.' });
+      }
+      throw error;
+    }
+    res.json({ success: true, usuario: mapUsuario(data) });
   } catch (error) {
     next(error);
   }
@@ -75,27 +73,16 @@ const updateUsuario = async (req, res, next) => {
 const uploadFotoFachada = async (req, res, next) => {
   try {
     if (!checkOwnership(req, res, req.params.id)) return;
+    if (!req.file) return res.status(400).json({ error: 'No se proporcionó imagen.' });
 
-    if (!req.file) {
-      return res.status(400).json({ error: 'No se proporcionó imagen.' });
-    }
-
-    const usuario = await Usuario.findById(req.params.id);
+    const sb = getSupabase();
+    const { data: usuario } = await sb.from('usuarios').select('foto_fachada').eq('id', req.params.id).maybeSingle();
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
-    // Delete old photo if exists
-    if (usuario.foto_fachada) {
-      const oldPath = path.join(__dirname, '../uploads', path.basename(usuario.foto_fachada));
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    }
-
-    const fileUrl = `${process.env.BASE_URL}/uploads/${req.file.filename}`;
-    usuario.foto_fachada = fileUrl;
-    await usuario.save({ validateBeforeSave: false });
-
-    res.json({ success: true, foto_fachada: fileUrl, usuario });
+    const fileUrl = await uploadImagen(req.file.buffer, req.file.mimetype);
+    if (usuario.foto_fachada) await borrarImagen(usuario.foto_fachada);
+    const { data } = await sb.from('usuarios').update({ foto_fachada: fileUrl }).eq('id', req.params.id).select().single();
+    res.json({ success: true, foto_fachada: fileUrl, usuario: mapUsuario(data) });
   } catch (error) {
     next(error);
   }
@@ -107,92 +94,15 @@ const uploadFotoFachada = async (req, res, next) => {
 const guardarPushToken = async (req, res, next) => {
   try {
     if (!checkOwnership(req, res, req.params.id)) return;
-
     const { pushToken } = req.body;
-    if (!pushToken) {
-      return res.status(400).json({ error: 'pushToken es requerido.' });
-    }
+    if (!pushToken) return res.status(400).json({ error: 'pushToken es requerido.' });
 
-    await Usuario.findByIdAndUpdate(req.params.id, {
-      pushToken,
-      pushTokenUpdatedAt: new Date(),
-    });
-
+    const sb = getSupabase();
+    await sb.from('usuarios').update({ push_token: pushToken, push_token_updated_at: new Date().toISOString() }).eq('id', req.params.id);
     res.json({ success: true, message: 'Token guardado correctamente.' });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * GET /api/usuarios/:id/qr
- */
-const getQR = async (req, res, next) => {
-  try {
-    if (!checkOwnership(req, res, req.params.id)) return;
-
-    const usuario = await Usuario.findById(req.params.id);
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
-
-    if (!usuario.qrImage) {
-      const result = await generateQRDataURL(usuario.qrId);
-      if (result.success) {
-        usuario.qrImage = result.dataURL;
-        await usuario.save({ validateBeforeSave: false });
-      }
-    }
-
-    const visitorUrl = `${process.env.VISITOR_BASE_URL}/${usuario.qrId}`;
-
-    res.json({
-      success: true,
-      qrId: usuario.qrId,
-      qrImage: usuario.qrImage,
-      visitorUrl,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * POST /api/usuarios/:id/regenerar-qr
- */
-const regenerarQR = async (req, res, next) => {
-  try {
-    if (!checkOwnership(req, res, req.params.id)) return;
-
-    const { v4: uuidv4 } = require('uuid');
-    const nuevoQrId = uuidv4();
-
-    const result = await generateQRDataURL(nuevoQrId);
-    if (!result.success) {
-      return res.status(500).json({ error: 'Error generando QR.' });
-    }
-
-    const usuario = await Usuario.findByIdAndUpdate(
-      req.params.id,
-      { qrId: nuevoQrId, qrImage: result.dataURL },
-      { new: true }
-    );
-
-    res.json({
-      success: true,
-      qrId: nuevoQrId,
-      qrImage: result.dataURL,
-      visitorUrl: `${process.env.VISITOR_BASE_URL}/${nuevoQrId}`,
-      usuario,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-module.exports = {
-  getUsuario,
-  updateUsuario,
-  uploadFotoFachada,
-  guardarPushToken,
-  getQR,
-  regenerarQR,
-};
+module.exports = { getUsuario, updateUsuario, uploadFotoFachada, guardarPushToken };

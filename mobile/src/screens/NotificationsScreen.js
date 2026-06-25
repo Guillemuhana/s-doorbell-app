@@ -5,6 +5,7 @@ import {
   useColorScheme, ActivityIndicator, Alert, RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { eventosAPI } from '../utils/api';
@@ -31,10 +32,10 @@ const EventItem = ({ evento, onDelete, isDark }) => {
   const { dateLabel, time } = formatDateTime(evento.createdAt);
 
   const typeConfig = {
-    timbrazo: { icon: '🔔', label: 'Timbrazo', color: COLORS.primary },
-    vista_qr: { icon: '👁️', label: 'QR Escaneado', color: COLORS.info },
-    login: { icon: '🔑', label: 'Login', color: COLORS.success },
-    logout: { icon: '🚪', label: 'Logout', color: COLORS.gray400 },
+    timbrazo: { icon: 'bell', label: 'Timbrazo', color: COLORS.primary },
+    vista_qr: { icon: 'eye', label: 'QR Escaneado', color: COLORS.info },
+    login: { icon: 'key', label: 'Login', color: COLORS.success },
+    logout: { icon: 'door', label: 'Logout', color: COLORS.gray400 },
   };
 
   const config = typeConfig[evento.tipo] || typeConfig.timbrazo;
@@ -42,7 +43,7 @@ const EventItem = ({ evento, onDelete, isDark }) => {
   return (
     <View style={[styles.eventItem, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#fff', borderLeftColor: config.color }]}>
       <View style={[styles.eventIconBg, { backgroundColor: `${config.color}18` }]}>
-        <Text style={styles.eventEmoji}>{config.icon}</Text>
+        <MaterialCommunityIcons name={config.icon} size={22} color={config.color} />
       </View>
       <View style={styles.eventBody}>
         <View style={styles.eventHeader}>
@@ -50,7 +51,7 @@ const EventItem = ({ evento, onDelete, isDark }) => {
           <Text style={[styles.eventTime, { color: mutedColor }]}>{time} hs</Text>
         </View>
         {evento.visitorName && (
-          <Text style={[styles.eventVisitor, { color: textColor }]}>👤 {evento.visitorName}</Text>
+          <Text style={[styles.eventVisitor, { color: textColor }]}>{evento.visitorName}</Text>
         )}
         <View style={styles.eventMeta}>
           <Text style={[styles.eventDate, { color: mutedColor }]}>{dateLabel}</Text>
@@ -65,7 +66,7 @@ const EventItem = ({ evento, onDelete, isDark }) => {
       </View>
       {evento.tipo === 'timbrazo' && (
         <TouchableOpacity onPress={() => onDelete(evento._id)} style={styles.deleteBtn}>
-          <Text style={styles.deleteIcon}>🗑</Text>
+          <MaterialCommunityIcons name="trash-can-outline" size={20} color={mutedColor} />
         </TouchableOpacity>
       )}
     </View>
@@ -156,7 +157,7 @@ const NotificationsScreen = ({ navigation }) => {
       <View style={[styles.header, { backgroundColor: isDark ? '#0A0A0A' : COLORS.primary }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+            <MaterialCommunityIcons name="chevron-left" size={28} color={COLORS.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Historial</Text>
           <View style={{ width: 32 }} />
@@ -182,7 +183,7 @@ const NotificationsScreen = ({ navigation }) => {
             onPress={() => { setFilter(f); setPage(1); setLoading(true); }}
           >
             <Text style={[styles.filterTabText, filter === f && styles.filterTabTextActive]}>
-              {f === 'timbrazo' ? '🔔 Timbrazos' : '👁️ Escaneos'}
+              {f === 'timbrazo' ? 'Timbrazos' : 'Escaneos'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -204,7 +205,7 @@ const NotificationsScreen = ({ navigation }) => {
           ListFooterComponent={loadingMore ? <ActivityIndicator color={COLORS.primary} style={{ margin: SPACING.lg }} /> : null}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>🔕</Text>
+              <MaterialCommunityIcons name="bell-off-outline" size={48} color={isDark ? COLORS.gray400 : COLORS.gray300} style={{ marginBottom: SPACING.md }} />
               <Text style={[styles.emptyText, { color: isDark ? COLORS.gray400 : COLORS.gray500 }]}>
                 No hay {filter === 'timbrazo' ? 'timbrazos' : 'escaneos'} registrados
               </Text>

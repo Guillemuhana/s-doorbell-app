@@ -39,6 +39,12 @@ const EventoSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // ── Geo del visitante (modo geo) ──
+    visitorLat: { type: Number, default: null },
+    visitorLng: { type: Number, default: null },
+    visitorAccuracy: { type: Number, default: null }, // metros de precisión del GPS
+    distanciaMetros: { type: Number, default: null },  // distancia a la puerta
+    ubicacionVerificada: { type: Boolean, default: null }, // true=cerca, false=lejos, null=sin datos
     notificationSent: {
       type: Boolean,
       default: false,

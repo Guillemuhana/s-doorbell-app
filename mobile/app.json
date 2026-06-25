@@ -15,7 +15,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.sdoorbell.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "S-Doorbell necesita la cámara para escanear el QR de tu timbre.",
+        "NSCameraUsageDescription": "S-Doorbell necesita la cámara para escanear el QR y para las videollamadas con tus visitantes.",
+        "NSMicrophoneUsageDescription": "S-Doorbell necesita el micrófono para las videollamadas con tus visitantes.",
         "NSPhotoLibraryUsageDescription": "S-Doorbell necesita acceso a tus fotos para subir la foto de tu casa.",
         "UIBackgroundModes": [
           "remote-notification",
@@ -31,13 +32,14 @@
       "package": "com.sdoorbell.app",
       "permissions": [
         "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "INTERNET"
-      ],
-      "googleServicesFile": "./google-services.json"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { direccionesAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
@@ -47,13 +47,13 @@ const InviteFamilyScreen = ({ route, navigation }) => {
       <StatusBar style="dark" />
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="close" size={26} color={COLORS.gray500} />
+          <MaterialCommunityIcons name="close" size={26} color={COLORS.gray500} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.illustration}>
-          <Ionicons name="people-circle" size={120} color={COLORS.primary} />
+          <MaterialCommunityIcons name="account-group" size={110} color={COLORS.primary} />
         </View>
 
         <Text style={styles.title}>Invitá familiares</Text>

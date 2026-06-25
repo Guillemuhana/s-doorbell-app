@@ -1,45 +1,34 @@
 // controllers/visitorController.js
-const Timbre = require('../models/Timbre');
-const Direccion = require('../models/Direccion');
-const Membership = require('../models/Membership');
-const Usuario = require('../models/Usuario');
-const Evento = require('../models/Evento');
+const { getSupabase } = require('../config/supabase');
 const { sendRingNotification } = require('../services/pushNotificationService');
+const { distanciaMetros, UMBRAL_VERIFICADO } = require('../utils/geo');
 const logger = require('../config/logger');
 
-/**
- * Resuelve un qrId a su timbre + dirección + dueño.
- * Devuelve null si no existe.
- */
+// Resuelve un qrId → timbre + dirección (activos).
 const resolverTimbre = async (qrId) => {
-  const timbre = await Timbre.findOne({ qrId, activo: true });
+  const sb = getSupabase();
+  const { data: timbre } = await sb.from('timbres').select('*').eq('qr_id', qrId).eq('activo', true).maybeSingle();
   if (!timbre) return null;
-  const direccion = await Direccion.findById(timbre.direccion);
+  const { data: direccion } = await sb.from('direcciones').select('*').eq('id', timbre.direccion_id).maybeSingle();
   if (!direccion || !direccion.activa) return null;
   return { timbre, direccion };
 };
 
 /**
  * GET /api/visitor/:qrId
- * Info pública de la casa para la web del visitante.
  */
 const getVisitorInfo = async (req, res, next) => {
   try {
-    const { qrId } = req.params;
-    const resuelto = await resolverTimbre(qrId);
+    const resuelto = await resolverTimbre(req.params.qrId);
     if (!resuelto) return res.status(404).json({ error: 'QR no válido o no encontrado.' });
-
     const { timbre, direccion } = resuelto;
-    const owner = await Usuario.findById(direccion.owner).select('nombre apellido');
 
-    // Log de escaneo
-    await Evento.create({
-      userId: direccion.owner,
-      direccionId: direccion._id,
-      timbreId: timbre._id,
-      tipo: 'vista_qr',
-      visitorIP: req.ip,
-      userAgent: req.headers['user-agent'],
+    const sb = getSupabase();
+    const { data: owner } = await sb.from('usuarios').select('nombre,apellido').eq('id', direccion.owner_id).maybeSingle();
+
+    await sb.from('eventos').insert({
+      user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
+      tipo: 'vista_qr', visitor_ip: req.ip, user_agent: req.headers['user-agent'],
     });
 
     res.json({
@@ -49,7 +38,8 @@ const getVisitorInfo = async (req, res, next) => {
         direccion: direccion.direccion || direccion.nombre || 'Dirección privada',
         foto_fachada: direccion.foto,
         timbre: timbre.nombre,
-        qrId: timbre.qrId,
+        qrId: timbre.qr_id,
+        modoGeo: !!timbre.modo_geo,
       },
     });
   } catch (error) {
@@ -59,64 +49,63 @@ const getVisitorInfo = async (req, res, next) => {
 
 /**
  * POST /api/visitor/:qrId/ring
- * Toca el timbre: notifica a todos los miembros de la dirección.
  */
 const ringDoorbell = async (req, res, next) => {
   try {
-    const { qrId } = req.params;
-    const { visitorName } = req.body;
-
-    const resuelto = await resolverTimbre(qrId);
+    const { visitorName, lat, lng, accuracy } = req.body;
+    const resuelto = await resolverTimbre(req.params.qrId);
     if (!resuelto) return res.status(404).json({ error: 'QR no válido.' });
-
     const { timbre, direccion } = resuelto;
+    const sb = getSupabase();
 
     const visitorIP =
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-      req.headers['x-real-ip'] ||
-      req.connection?.remoteAddress ||
-      req.ip;
+      req.headers['x-real-ip'] || req.connection?.remoteAddress || req.ip;
 
-    // Todos los miembros activos con pushToken
-    const memberships = await Membership.find({ direccion: direccion._id, estado: 'activo' })
-      .populate('usuario', 'nombre apellido pushToken')
-      .lean();
+    // Geo
+    const visitorLat = typeof lat === 'number' ? lat : null;
+    const visitorLng = typeof lng === 'number' ? lng : null;
+    let distancia = null;
+    let ubicacionVerificada = null;
+    if (visitorLat !== null && visitorLng !== null && direccion.lat != null && direccion.lng != null) {
+      distancia = distanciaMetros(visitorLat, visitorLng, direccion.lat, direccion.lng);
+      if (distancia !== null) ubicacionVerificada = distancia <= UMBRAL_VERIFICADO;
+    }
+
+    // Notificar a todos los miembros con pushToken
+    const { data: ms } = await sb.from('memberships')
+      .select('usuario:usuarios(id,nombre,apellido,push_token)')
+      .eq('direccion_id', direccion.id).eq('estado', 'activo');
 
     let enviados = 0;
-    await Promise.all(
-      memberships
-        .filter((m) => m.usuario && m.usuario.pushToken)
-        .map(async (m) => {
-          const result = await sendRingNotification({
-            pushToken: m.usuario.pushToken,
-            ownerName: `${m.usuario.nombre} ${m.usuario.apellido}`,
-            visitorName: visitorName?.trim() || null,
-            address: `${direccion.nombre} · ${timbre.nombre}`,
-          });
-          if (result.success) enviados += 1;
-          if (result.tokenInvalid) {
-            await Usuario.findByIdAndUpdate(m.usuario._id, { pushToken: null });
-            logger.warn(`Cleared invalid pushToken for user ${m.usuario._id}`);
-          }
-        })
-    );
+    await Promise.all((ms || []).filter((m) => m.usuario && m.usuario.push_token).map(async (m) => {
+      const result = await sendRingNotification({
+        pushToken: m.usuario.push_token,
+        ownerName: `${m.usuario.nombre} ${m.usuario.apellido}`,
+        visitorName: visitorName?.trim() || null,
+        address: `${direccion.nombre} · ${timbre.nombre}`,
+      });
+      if (result.success) enviados += 1;
+      if (result.tokenInvalid) {
+        await sb.from('usuarios').update({ push_token: null }).eq('id', m.usuario.id);
+        logger.warn(`Cleared invalid pushToken for user ${m.usuario.id}`);
+      }
+    }));
 
-    await Evento.create({
-      userId: direccion.owner,
-      direccionId: direccion._id,
-      timbreId: timbre._id,
-      tipo: 'timbrazo',
-      visitorIP,
-      visitorName: visitorName?.trim() || null,
-      userAgent: req.headers['user-agent'],
-      notificationSent: enviados > 0,
-      notificationError: enviados > 0 ? null : 'Sin destinatarios con token',
+    await sb.from('eventos').insert({
+      user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
+      tipo: 'timbrazo', visitor_ip: visitorIP, visitor_name: visitorName?.trim() || null,
+      user_agent: req.headers['user-agent'],
+      visitor_lat: visitorLat, visitor_lng: visitorLng,
+      visitor_accuracy: typeof accuracy === 'number' ? accuracy : null,
+      distancia_metros: distancia, ubicacion_verificada: ubicacionVerificada,
+      notification_sent: enviados > 0,
+      notification_error: enviados > 0 ? null : 'Sin destinatarios con token',
     });
 
     res.json({
-      success: true,
-      message: 'Timbre enviado.',
-      notificados: enviados,
+      success: true, message: 'Timbre enviado.', notificados: enviados,
+      distanciaMetros: distancia, ubicacionVerificada,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

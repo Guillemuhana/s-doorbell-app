@@ -1,12 +1,12 @@
 // middleware/auth.js
 const jwt = require('jsonwebtoken');
-const Usuario = require('../models/Usuario');
+const { getSupabase } = require('../config/supabase');
+const { mapUsuario } = require('../db/mappers');
 const logger = require('../config/logger');
 
 const protect = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'No autorizado. Token no proporcionado.' });
     }
@@ -23,16 +23,21 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ error: 'Token inválido.' });
     }
 
-    const usuario = await Usuario.findById(decoded.id).select('-password');
-    if (!usuario) {
+    const sb = getSupabase();
+    const { data: row, error } = await sb
+      .from('usuarios')
+      .select('*')
+      .eq('id', decoded.id)
+      .single();
+
+    if (error || !row) {
       return res.status(401).json({ error: 'Usuario no encontrado.' });
     }
-
-    if (!usuario.isActive) {
+    if (!row.is_active) {
       return res.status(403).json({ error: 'Cuenta desactivada.' });
     }
 
-    req.usuario = usuario;
+    req.usuario = mapUsuario(row); // tiene _id
     next();
   } catch (error) {
     logger.error('Auth middleware error:', error);

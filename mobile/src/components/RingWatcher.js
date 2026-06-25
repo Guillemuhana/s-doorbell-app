@@ -1,0 +1,88 @@
+// src/components/RingWatcher.js
+// Mientras la app está abierta:
+//  • consulta timbrazos recientes y dispara una notificación local (banner + sonido);
+//  • consulta videollamadas entrantes y abre la pantalla de llamada.
+// También abre la llamada si el usuario toca una notificación push INCOMING_CALL.
+import { useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { eventosAPI, callsAPI } from '../utils/api';
+import { scheduleLocalNotification, addNotificationResponseListener } from '../utils/notifications';
+import { navigate } from '../navigation/navigationRef';
+
+const POLL_MS = 7000;
+const CALL_POLL_MS = 4000;
+
+export default function RingWatcher() {
+  const { isAuthenticated } = useAuth();
+  const sinceRef = useRef(new Date().toISOString());
+  const openedCallRef = useRef(null); // callId ya abierto, para no reabrir
+
+  const abrirLlamada = (callId, visitorName, direccionNombre) => {
+    if (!callId || openedCallRef.current === callId) return;
+    openedCallRef.current = callId;
+    navigate('Call', { callId, visitorName, direccionNombre });
+  };
+
+  // ─── Timbrazos + videollamadas entrantes (polling) ─────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let ringTimer = null;
+    let callTimer = null;
+    let stopped = false;
+
+    const pollRings = async () => {
+      try {
+        const { data } = await eventosAPI.getRecientes(sinceRef.current);
+        const nuevos = (data.eventos || []).filter(
+          (e) => new Date(e.createdAt) > new Date(sinceRef.current)
+        );
+        if (nuevos.length && !stopped) {
+          sinceRef.current = nuevos.map((e) => e.createdAt).sort().pop();
+          for (const e of nuevos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))) {
+            const visitante = e.visitorName || 'Alguien';
+            const lugar = e.direccionId?.nombre ? ` · ${e.direccionId.nombre}` : '';
+            await scheduleLocalNotification({
+              title: '🔔 ¡Timbre!',
+              body: `${visitante} está en tu puerta${lugar}`,
+              data: { type: 'DOORBELL_RING', eventId: e._id },
+            });
+          }
+        }
+      } catch { /* silencioso */ }
+    };
+
+    const pollCalls = async () => {
+      try {
+        const { data } = await callsAPI.incoming();
+        const call = (data.calls || [])[0];
+        if (call && !stopped) {
+          abrirLlamada(call._id, call.visitorName, call.direccion?.nombre);
+        }
+      } catch { /* silencioso (p.ej. backend sin endpoint de calls) */ }
+    };
+
+    pollRings();
+    pollCalls();
+    ringTimer = setInterval(pollRings, POLL_MS);
+    callTimer = setInterval(pollCalls, CALL_POLL_MS);
+    return () => {
+      stopped = true;
+      if (ringTimer) clearInterval(ringTimer);
+      if (callTimer) clearInterval(callTimer);
+    };
+  }, [isAuthenticated]);
+
+  // ─── Tap en notificación push de videollamada ──────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const sub = addNotificationResponseListener((response) => {
+      const data = response?.notification?.request?.content?.data || {};
+      if (data.type === 'INCOMING_CALL' && data.callId) {
+        abrirLlamada(data.callId, data.visitorName, data.address);
+      }
+    });
+    return () => { try { sub?.remove(); } catch {} };
+  }, [isAuthenticated]);
+
+  return null;
+}

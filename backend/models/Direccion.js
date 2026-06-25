@@ -29,6 +29,15 @@ const DireccionSchema = new mongoose.Schema(
       type: String,
       default: null, // URL of the facade photo
     },
+    // Ubicación de la puerta/casa (para verificar al visitante en modo geo)
+    lat: {
+      type: Number,
+      default: null,
+    },
+    lng: {
+      type: Number,
+      default: null,
+    },
     activa: {
       type: Boolean,
       default: true,

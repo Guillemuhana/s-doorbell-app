@@ -97,6 +97,14 @@ MAX_FILE_SIZE=5242880
 UPLOAD_PATH=./uploads
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX=100
+
+# ─── Videollamada (WebRTC) ───────────────────────────────────
+# STUN gratis basta en redes simples/LAN. Para NAT estricto o redes
+# celulares hace falta un TURN (Twilio, metered.ca, coturn self-host).
+STUN_URLS=stun:stun.l.google.com:19302
+# TURN_URL=turn:tu-turn.com:3478
+# TURN_USERNAME=usuario
+# TURN_CREDENTIAL=credencial
 ```
 
 ---
@@ -133,6 +141,27 @@ npx expo start --ios
 npx eas build --platform android
 npx eas build --platform ios
 ```
+
+### ⚠️ Videollamada → requiere Dev Build (no Expo Go)
+
+La videollamada usa `react-native-webrtc`, que es código **nativo**. Expo Go
+**no** lo incluye, así que el resto de la app sigue corriendo en Expo Go pero la
+pantalla de llamada solo funciona en un *dev build*:
+
+```bash
+cd mobile
+npx expo install react-native-webrtc @config-plugins/react-native-webrtc
+# Compilar e instalar el dev build en un dispositivo físico:
+npx expo run:android        # o run:ios (cámara/mic no andan en emulador)
+# Alternativa en la nube:
+npx eas build --profile development --platform android
+```
+
+Notas:
+- La **web del visitante** NO necesita nada de esto (WebRTC es nativo del navegador).
+- Probar con **dispositivos físicos**: cámara y micrófono no funcionan en emuladores.
+- En LAN/redes simples alcanza con STUN; para celular/NAT estricto configurar TURN
+  (ver `STUN_URLS`/`TURN_*` en el `.env` del backend).
 
 ---
 
@@ -193,6 +222,24 @@ POST   /api/notificaciones/test           # Enviar notif de prueba
 ```
 GET    /api/visitor/:qrId         # Info pública de la casa
 POST   /api/visitor/:qrId/ring    # TOCAR TIMBRE
+```
+
+### Videollamada / Calls (WebRTC signaling)
+```
+# Público (visitante; el callId secreto autoriza)
+GET    /api/calls/config              # Servidores ICE (STUN/TURN)
+POST   /api/calls/start/:qrId         # Iniciar videollamada (notifica a residentes)
+POST   /api/calls/:callId/visitor/signal   # Enviar offer/ice
+GET    /api/calls/:callId/visitor/poll     # Recibir answer/ice + estado
+POST   /api/calls/:callId/visitor/hangup
+
+# Privado (residente autenticado)
+GET    /api/calls/incoming            # Videollamadas entrantes (ringing)
+POST   /api/calls/:callId/accept
+POST   /api/calls/:callId/reject
+POST   /api/calls/:callId/resident/signal  # Enviar answer/ice
+GET    /api/calls/:callId/resident/poll    # Recibir offer/ice + estado
+POST   /api/calls/:callId/resident/hangup
 ```
 
 ### Health

@@ -7,7 +7,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { direccionesAPI } from '../utils/api';
@@ -16,7 +16,7 @@ import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme
 const CircleAction = ({ icon, label, active, onPress }) => (
   <TouchableOpacity style={styles.circleWrap} onPress={onPress} activeOpacity={0.8}>
     <View style={[styles.circle, active && styles.circleActive]}>
-      <Ionicons name={icon} size={22} color={active ? COLORS.white : COLORS.gray700} />
+      <MaterialCommunityIcons name={icon} size={22} color={active ? COLORS.white : COLORS.gray700} />
     </View>
     <Text style={styles.circleLabel}>{label}</Text>
   </TouchableOpacity>
@@ -84,6 +84,19 @@ const UnitDetailScreen = ({ route, navigation }) => {
     );
   }
 
+  // Si la carga falló, mostrar un estado de error en vez de crashear.
+  if (!data || !data.direccion) {
+    return (
+      <SafeAreaView style={[styles.container, styles.center]} edges={['top']}>
+        <MaterialCommunityIcons name="home-alert" size={48} color={COLORS.gray300} />
+        <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>No se pudo cargar la dirección.</Text>
+        <TouchableOpacity style={{ marginTop: SPACING.lg }} onPress={() => navigation.goBack()}>
+          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Volver</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   const { direccion, timbres = [], familiares = [] } = data;
   const timbrePrincipal = timbres[0];
 
@@ -103,14 +116,14 @@ const UnitDetailScreen = ({ route, navigation }) => {
           {!direccion.foto && <LinearGradient colors={['#3C3C42', '#19191C']} style={StyleSheet.absoluteFillObject} />}
           <SafeAreaView edges={['top']} style={styles.heroTop}>
             <TouchableOpacity style={styles.heroBtn} onPress={() => navigation.goBack()}>
-              <Ionicons name="chevron-back" size={22} color={COLORS.white} />
+              <MaterialCommunityIcons name="chevron-left" size={26} color={COLORS.white} />
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
               <TouchableOpacity style={styles.heroBtnGold} onPress={() => esDueno ? navigation.navigate('AddAddress', { direccionId }) : null}>
-                <Ionicons name="settings-outline" size={18} color={COLORS.white} />
+                <MaterialCommunityIcons name="cog-outline" size={19} color={COLORS.white} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.heroBtnGold} onPress={cambiarFoto}>
-                <Ionicons name="image-outline" size={18} color={COLORS.white} />
+                <MaterialCommunityIcons name="image-outline" size={18} color={COLORS.white} />
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -128,11 +141,11 @@ const UnitDetailScreen = ({ route, navigation }) => {
 
           {/* Acciones circulares */}
           <View style={styles.circles}>
-            <CircleAction icon="notifications" label="Timbre" active
+            <CircleAction icon="bell" label="Timbre" active
               onPress={() => timbrePrincipal
                 ? navigation.navigate('QRViewer', { timbreId: timbrePrincipal._id, direccionNombre: direccion.nombre })
                 : agregarTimbre()} />
-            <CircleAction icon="location-outline" label="Ubicación"
+            <CircleAction icon="map-marker-outline" label="Ubicación"
               onPress={() => Alert.alert(direccion.nombre, direccion.direccion || 'Sin dirección cargada')} />
             <CircleAction icon="camera-outline" label="Foto" onPress={cambiarFoto} />
             <CircleAction icon="flask-outline" label="Probar"
@@ -143,20 +156,20 @@ const UnitDetailScreen = ({ route, navigation }) => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Timbres</Text>
             <TouchableOpacity style={styles.plus} onPress={agregarTimbre}>
-              <Ionicons name="add" size={20} color={COLORS.white} />
+              <MaterialCommunityIcons name="plus" size={20} color={COLORS.white} />
             </TouchableOpacity>
           </View>
           {timbres.map((t) => (
             <TouchableOpacity key={t._id} style={styles.row}
               onPress={() => navigation.navigate('QRViewer', { timbreId: t._id, direccionNombre: direccion.nombre })}>
               <View style={styles.rowIcon}>
-                <Ionicons name="notifications" size={18} color={COLORS.primary} />
+                <MaterialCommunityIcons name="bell" size={18} color={COLORS.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowSub}>{t.tipo}</Text>
                 <Text style={styles.rowTitle}>{t.nombre}</Text>
               </View>
-              <Ionicons name="qr-code-outline" size={20} color={COLORS.gray400} />
+              <MaterialCommunityIcons name="qrcode" size={20} color={COLORS.gray400} />
             </TouchableOpacity>
           ))}
 
@@ -164,7 +177,7 @@ const UnitDetailScreen = ({ route, navigation }) => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Familiares</Text>
             <TouchableOpacity style={styles.plus} onPress={() => navigation.navigate('InviteFamily', { direccionId })}>
-              <Ionicons name="add" size={20} color={COLORS.white} />
+              <MaterialCommunityIcons name="plus" size={20} color={COLORS.white} />
             </TouchableOpacity>
           </View>
           {familiares.map((f) => (
@@ -176,7 +189,7 @@ const UnitDetailScreen = ({ route, navigation }) => {
                 <Text style={styles.rowSub}>{f.rol === 'dueño' ? 'Dueño' : f.rol === 'colaborador' ? 'Colaborador' : 'Familiar'}</Text>
                 <Text style={styles.rowTitle}>{f.nombreCompleto}</Text>
               </View>
-              {f.rol === 'dueño' && <Ionicons name="shield-checkmark" size={18} color={COLORS.primary} />}
+              {f.rol === 'dueño' && <MaterialCommunityIcons name="shield-check" size={18} color={COLORS.primary} />}
             </View>
           ))}
         </View>
@@ -212,7 +225,7 @@ const styles = StyleSheet.create({
   circleWrap: { alignItems: 'center', gap: 6 },
   circle: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.surface,
-    alignItems: 'center', justifyContent: 'center', ...SHADOWS.sm,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border,
   },
   circleActive: { backgroundColor: COLORS.primary, ...SHADOWS.gold },
   circleLabel: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, fontWeight: '500' },
@@ -222,7 +235,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
-    padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOWS.sm,
+    padding: SPACING.md, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   rowIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
   rowSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted },

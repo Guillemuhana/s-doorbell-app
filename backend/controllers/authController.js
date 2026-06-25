@@ -1,16 +1,19 @@
 // controllers/authController.js
-const Usuario = require('../models/Usuario');
-const Evento = require('../models/Evento');
-const Direccion = require('../models/Direccion');
-const Membership = require('../models/Membership');
-const Timbre = require('../models/Timbre');
+const bcrypt = require('bcryptjs');
+const { getSupabase } = require('../config/supabase');
+const { mapUsuario } = require('../db/mappers');
 const { generateToken } = require('../middleware/auth');
 const { generateQRDataURL } = require('../services/qrService');
 const { initializeFirebase } = require('../config/firebase');
 const logger = require('../config/logger');
 
-// Initialize Firebase on startup
 try { initializeFirebase(); } catch (e) { logger.warn('Firebase not initialized:', e.message); }
+
+const publicUsuario = (u) => ({
+  _id: u._id, nombre: u.nombre, apellido: u.apellido, email: u.email,
+  telefono: u.telefono, foto_fachada: u.foto_fachada, pushToken: u.pushToken,
+  forzarCambioPassword: u.forzarCambioPassword,
+});
 
 /**
  * POST /api/auth/login
@@ -18,52 +21,25 @@ try { initializeFirebase(); } catch (e) { logger.warn('Firebase not initialized:
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password) {
       return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
     }
+    const sb = getSupabase();
+    const { data: row } = await sb
+      .from('usuarios').select('*').eq('email', email.toLowerCase().trim()).maybeSingle();
 
-    // Include password in query (select: false in schema)
-    const usuario = await Usuario.findOne({ email: email.toLowerCase().trim() }).select('+password');
-
-    if (!usuario || !(await usuario.comparePassword(password))) {
+    if (!row || !(await bcrypt.compare(password, row.password))) {
       return res.status(401).json({ error: 'Credenciales incorrectas.' });
     }
+    if (!row.is_active) return res.status(403).json({ error: 'Cuenta desactivada.' });
 
-    if (!usuario.isActive) {
-      return res.status(403).json({ error: 'Cuenta desactivada.' });
-    }
-
-    // Update last login
-    usuario.lastLogin = new Date();
-    await usuario.save({ validateBeforeSave: false });
-
-    // Log event
-    await Evento.create({
-      userId: usuario._id,
-      tipo: 'login',
-      visitorIP: req.ip,
-      userAgent: req.headers['user-agent'],
+    await sb.from('usuarios').update({ last_login: new Date().toISOString() }).eq('id', row.id);
+    await sb.from('eventos').insert({
+      user_id: row.id, tipo: 'login', visitor_ip: req.ip, user_agent: req.headers['user-agent'],
     });
 
-    const token = generateToken(usuario._id);
-
-    res.json({
-      success: true,
-      token,
-      usuario: {
-        _id: usuario._id,
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-        email: usuario.email,
-        telefono: usuario.telefono,
-        direccion: usuario.direccion,
-        foto_fachada: usuario.foto_fachada,
-        qrId: usuario.qrId,
-        qrImage: usuario.qrImage,
-        pushToken: usuario.pushToken,
-      },
-    });
+    const usuario = mapUsuario(row);
+    res.json({ success: true, token: generateToken(row.id), usuario: publicUsuario(usuario) });
   } catch (error) {
     next(error);
   }
@@ -75,59 +51,34 @@ const login = async (req, res, next) => {
 const register = async (req, res, next) => {
   try {
     const { nombre, apellido, email, password, telefono, direccion } = req.body;
-
     if (!nombre || !apellido || !email || !password) {
       return res.status(400).json({ error: 'Nombre, apellido, email y contraseña son requeridos.' });
     }
+    const sb = getSupabase();
+    const emailNorm = email.toLowerCase().trim();
 
-    const existente = await Usuario.findOne({ email: email.toLowerCase().trim() });
-    if (existente) {
-      return res.status(400).json({ error: 'El email ya está registrado.' });
-    }
+    const { data: existente } = await sb.from('usuarios').select('id').eq('email', emailNorm).maybeSingle();
+    if (existente) return res.status(400).json({ error: 'El email ya está registrado.' });
 
-    const usuario = new Usuario({ nombre, apellido, email, password, telefono, direccion });
-    await usuario.save();
+    const hash = await bcrypt.hash(password, 12);
+    const { data: u, error: uErr } = await sb.from('usuarios')
+      .insert({ nombre, apellido, email: emailNorm, password: hash, telefono: telefono || '' })
+      .select().single();
+    if (uErr) throw uErr;
 
-    // Crear la primera dirección + membership (dueño) + timbre por defecto
-    const nuevaDireccion = await Direccion.create({
-      owner: usuario._id,
-      nombre: direccion?.trim() || 'Mi casa',
-      tipo: 'Casa',
-      direccion: direccion?.trim() || '',
-    });
-    await Membership.create({
-      usuario: usuario._id,
-      direccion: nuevaDireccion._id,
-      rol: 'dueño',
-    });
-    const timbre = await Timbre.create({
-      direccion: nuevaDireccion._id,
-      nombre: 'Puerta',
-      tipo: 'Timbre particular',
-    });
-    const qrResult = await generateQRDataURL(timbre.qrId);
-    if (qrResult.success) {
-      timbre.qrImage = qrResult.dataURL;
-      await timbre.save();
-    }
+    // Dirección + membership (dueño) + timbre con QR
+    const { data: dir } = await sb.from('direcciones')
+      .insert({ owner_id: u.id, nombre: direccion?.trim() || 'Mi casa', tipo: 'Casa', direccion: direccion?.trim() || '' })
+      .select().single();
+    await sb.from('memberships').insert({ usuario_id: u.id, direccion_id: dir.id, rol: 'dueño' });
+    const { data: timbre } = await sb.from('timbres')
+      .insert({ direccion_id: dir.id, nombre: 'Puerta', tipo: 'Timbre particular' })
+      .select().single();
+    const qr = await generateQRDataURL(timbre.qr_id);
+    if (qr.success) await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
 
-    const token = generateToken(usuario._id);
-
-    res.status(201).json({
-      success: true,
-      token,
-      usuario: {
-        _id: usuario._id,
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-        email: usuario.email,
-        telefono: usuario.telefono,
-        direccion: usuario.direccion,
-        foto_fachada: usuario.foto_fachada,
-        qrId: usuario.qrId,
-        qrImage: usuario.qrImage,
-      },
-    });
+    const usuario = mapUsuario(u);
+    res.status(201).json({ success: true, token: generateToken(u.id), usuario: publicUsuario(usuario) });
   } catch (error) {
     next(error);
   }
@@ -136,22 +87,15 @@ const register = async (req, res, next) => {
 /**
  * GET /api/auth/me
  */
-const me = async (req, res, next) => {
-  try {
-    const usuario = await Usuario.findById(req.usuario._id);
-    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
-    res.json({ success: true, usuario });
-  } catch (error) {
-    next(error);
-  }
+const me = async (req, res) => {
+  res.json({ success: true, usuario: publicUsuario(req.usuario) });
 };
 
 /**
  * POST /api/auth/refresh
  */
 const refreshToken = async (req, res) => {
-  const token = generateToken(req.usuario._id);
-  res.json({ success: true, token });
+  res.json({ success: true, token: generateToken(req.usuario._id) });
 };
 
 module.exports = { login, register, me, refreshToken };

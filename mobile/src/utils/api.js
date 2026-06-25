@@ -96,6 +96,7 @@ export const eventosAPI = {
   getHistorial: (userId, params = {}) =>
     api.get(`/eventos/historial/${userId}`, { params }),
   getStats: (userId) => api.get(`/eventos/stats/${userId}`),
+  getRecientes: (since) => api.get('/eventos/recientes', { params: since ? { since } : {} }),
   delete: (id) => api.delete(`/eventos/${id}`),
 };
 
@@ -103,6 +104,17 @@ export const eventosAPI = {
 export const notificacionesAPI = {
   guardarToken: (pushToken) => api.post('/notificaciones/guardar-token', { pushToken }),
   testNotification: () => api.post('/notificaciones/test'),
+};
+
+// ─── Videollamadas API (residente) ──────────────────────────────────────────────
+export const callsAPI = {
+  config: () => api.get('/calls/config'),
+  incoming: () => api.get('/calls/incoming'),
+  accept: (callId) => api.post(`/calls/${callId}/accept`),
+  reject: (callId) => api.post(`/calls/${callId}/reject`),
+  signal: (callId, tipo, payload) => api.post(`/calls/${callId}/resident/signal`, { tipo, payload }),
+  poll: (callId, after = 0) => api.get(`/calls/${callId}/resident/poll`, { params: { after } }),
+  hangup: (callId) => api.post(`/calls/${callId}/resident/hangup`),
 };
 
 export default api;

@@ -34,6 +34,21 @@ const seedDatabase = async () => {
     password: 'demo1234', telefono: '+54 9 11 8765-4321',
   });
 
+  // Cuenta real de Guillem (con su propia dirección + timbre)
+  const guillem = await Usuario.create({
+    nombre: 'Guillem', apellido: 'Muhana', email: 'guillemuhana@gmail.com',
+    password: 'Gmuhana6',
+  });
+  const casaGuillem = await Direccion.create({
+    owner: guillem._id, nombre: 'Mi casa', tipo: 'Casa', activa: true,
+  });
+  await Membership.create({ usuario: guillem._id, direccion: casaGuillem._id, rol: 'dueño' });
+  const timbreGuillem = await Timbre.create({
+    direccion: casaGuillem._id, nombre: 'Puerta', tipo: 'Timbre particular',
+  });
+  const qrG = await generateQRDataURL(timbreGuillem.qrId);
+  if (qrG.success) { timbreGuillem.qrImage = qrG.dataURL; await timbreGuillem.save(); }
+
   // Dirección de Juan
   const balcarce = await Direccion.create({
     owner: juan._id, nombre: 'Balcarce 50', tipo: 'Casa',

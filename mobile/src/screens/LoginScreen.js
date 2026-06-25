@@ -15,18 +15,10 @@ import {
   Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import Logo from '../components/Logo';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
-
-const DoorbellIcon = () => (
-  <View style={styles.iconContainer}>
-    <View style={styles.iconRing} />
-    <View style={styles.iconInner}>
-      <Text style={styles.iconText}>🔔</Text>
-    </View>
-  </View>
-);
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
@@ -76,15 +68,7 @@ const LoginScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
-      <LinearGradient
-        colors={['#000000', '#0A0A0A', '#0D1117']}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      {/* Ambient glow */}
-      <View style={styles.glowTop} />
-      <View style={styles.glowBottom} />
+      <StatusBar style="dark" />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -97,9 +81,7 @@ const LoginScreen = () => {
         >
           {/* Header */}
           <View style={styles.header}>
-            <DoorbellIcon />
-            <Text style={styles.brandName}>S-Doorbell</Text>
-            <Text style={styles.tagline}>Tu timbre inteligente</Text>
+            <Logo size="lg" />
           </View>
 
           {/* Form */}
@@ -110,7 +92,7 @@ const LoginScreen = () => {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>EMAIL</Text>
               <View style={[styles.inputWrapper, errors.email && styles.inputError]}>
-                <Text style={styles.inputIcon}>✉️</Text>
+                <MaterialCommunityIcons name="email-outline" size={20} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="tu@email.com"
@@ -132,7 +114,7 @@ const LoginScreen = () => {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>CONTRASEÑA</Text>
               <View style={[styles.inputWrapper, errors.password && styles.inputError]}>
-                <Text style={styles.inputIcon}>🔒</Text>
+                <MaterialCommunityIcons name="lock-outline" size={20} color={COLORS.textMuted} style={styles.inputIcon} />
                 <TextInput
                   ref={passwordRef}
                   style={[styles.input, { flex: 1 }]}
@@ -146,7 +128,7 @@ const LoginScreen = () => {
                   selectionColor={COLORS.primary}
                 />
                 <TouchableOpacity onPress={() => setShowPassword(p => !p)} style={styles.eyeBtn}>
-                  <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                  <MaterialCommunityIcons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
               {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
@@ -159,18 +141,11 @@ const LoginScreen = () => {
               disabled={loading}
               activeOpacity={0.85}
             >
-              <LinearGradient
-                colors={loading ? [COLORS.gray700, COLORS.gray600] : ['#007AFF', '#0056CC']}
-                style={styles.loginBtnGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                {loading ? (
-                  <ActivityIndicator color={COLORS.white} />
-                ) : (
-                  <Text style={styles.loginBtnText}>Entrar →</Text>
-                )}
-              </LinearGradient>
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={styles.loginBtnText}>Entrar →</Text>
+              )}
             </TouchableOpacity>
           </Animated.View>
 
@@ -182,79 +157,37 @@ const LoginScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   keyboardView: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: SPACING.xl },
-  glowTop: {
-    position: 'absolute', top: -100, left: '50%',
-    width: 300, height: 300, marginLeft: -150,
-    borderRadius: 150,
-    backgroundColor: 'rgba(0, 122, 255, 0.12)',
-  },
-  glowBottom: {
-    position: 'absolute', bottom: -100, right: -50,
-    width: 250, height: 250,
-    borderRadius: 125,
-    backgroundColor: 'rgba(0, 122, 255, 0.07)',
-  },
-  header: { alignItems: 'center', marginBottom: SPACING['3xl'] },
-  iconContainer: { marginBottom: SPACING.lg, alignItems: 'center', justifyContent: 'center' },
-  iconRing: {
-    position: 'absolute',
-    width: 90, height: 90,
-    borderRadius: 45,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 122, 255, 0.35)',
-  },
-  iconInner: {
-    width: 72, height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(0, 122, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: { fontSize: 32 },
-  brandName: {
-    fontSize: FONT_SIZES['3xl'],
-    fontWeight: '800',
-    color: COLORS.white,
-    letterSpacing: -1,
-  },
-  tagline: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.gray400,
-    marginTop: SPACING.xs,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
+  header: { alignItems: 'center', marginBottom: SPACING['2xl'] },
   formCard: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: COLORS.surface,
     borderRadius: RADIUS['2xl'],
     padding: SPACING.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    ...SHADOWS.md,
   },
   formTitle: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
-    color: COLORS.white,
+    color: COLORS.text,
     marginBottom: SPACING.xl,
   },
   inputGroup: { marginBottom: SPACING.base },
   inputLabel: {
     fontSize: FONT_SIZES.xs,
     fontWeight: '600',
-    color: COLORS.gray400,
+    color: COLORS.textSecondary,
     letterSpacing: 1.2,
     marginBottom: SPACING.xs,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: COLORS.background,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: COLORS.border,
     paddingHorizontal: SPACING.md,
     height: 54,
   },
@@ -262,7 +195,7 @@ const styles = StyleSheet.create({
   inputIcon: { fontSize: 16, marginRight: SPACING.sm },
   input: {
     flex: 1,
-    color: COLORS.white,
+    color: COLORS.text,
     fontSize: FONT_SIZES.base,
     height: '100%',
   },
@@ -274,13 +207,16 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
     marginLeft: SPACING.xs,
   },
-  loginBtn: { marginTop: SPACING.lg, borderRadius: RADIUS.md, overflow: 'hidden', ...SHADOWS.blue },
+  loginBtn: {
+    marginTop: SPACING.lg, borderRadius: RADIUS.md, height: 56,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.primary, ...SHADOWS.gold,
+  },
   loginBtnDisabled: { opacity: 0.7 },
-  loginBtnGradient: { height: 56, alignItems: 'center', justifyContent: 'center' },
   loginBtnText: { color: COLORS.white, fontSize: FONT_SIZES.md, fontWeight: '700', letterSpacing: 0.5 },
   footer: {
     textAlign: 'center',
-    color: COLORS.gray600,
+    color: COLORS.textMuted,
     fontSize: FONT_SIZES.xs,
     marginTop: SPACING.xl,
   },

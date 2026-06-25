@@ -1,31 +1,24 @@
 // utils/access.js
-// Helpers de control de acceso basados en Membership.
-const Membership = require('../models/Membership');
+// Helpers de control de acceso basados en memberships (Supabase).
+const { getSupabase } = require('../config/supabase');
 
 /**
  * Devuelve el rol del usuario en la dirección, o null si no es miembro activo.
  */
 const getRol = async (usuarioId, direccionId) => {
-  const m = await Membership.findOne({
-    usuario: usuarioId,
-    direccion: direccionId,
-    estado: 'activo',
-  }).lean();
-  return m ? m.rol : null;
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from('memberships')
+    .select('rol')
+    .eq('usuario_id', usuarioId)
+    .eq('direccion_id', direccionId)
+    .eq('estado', 'activo')
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.rol;
 };
 
-/**
- * true si el usuario es miembro activo (cualquier rol) de la dirección.
- */
-const esMiembro = async (usuarioId, direccionId) => {
-  return (await getRol(usuarioId, direccionId)) !== null;
-};
-
-/**
- * true si el usuario es dueño de la dirección.
- */
-const esDueno = async (usuarioId, direccionId) => {
-  return (await getRol(usuarioId, direccionId)) === 'dueño';
-};
+const esMiembro = async (usuarioId, direccionId) => (await getRol(usuarioId, direccionId)) !== null;
+const esDueno = async (usuarioId, direccionId) => (await getRol(usuarioId, direccionId)) === 'dueño';
 
 module.exports = { getRol, esMiembro, esDueno };

@@ -29,6 +29,9 @@ GoogleService-Info.plist
 *-key.json
 serviceAccount*.json
 
+# QR temporales (se regeneran con qrcode)
+*-qr.png
+
 # OS / editor
 .DS_Store
 Thumbs.db

@@ -1,45 +1,32 @@
 // controllers/direccionController.js
-const path = require('path');
-const fs = require('fs');
-const Direccion = require('../models/Direccion');
-const Membership = require('../models/Membership');
-const Timbre = require('../models/Timbre');
-const Invitacion = require('../models/Invitacion');
+const { getSupabase } = require('../config/supabase');
+const { mapDireccion, mapTimbre } = require('../db/mappers');
 const { generateQRDataURL } = require('../services/qrService');
+const { uploadImagen, borrarImagen } = require('../services/storageService');
 const { getRol } = require('../utils/access');
-const logger = require('../config/logger');
 
 /**
- * GET /api/direcciones
- * Lista las direcciones del usuario (a través de sus memberships).
+ * GET /api/direcciones — direcciones del usuario (vía memberships).
  */
 const listDirecciones = async (req, res, next) => {
   try {
-    const memberships = await Membership.find({
-      usuario: req.usuario._id,
-      estado: 'activo',
-    })
-      .populate('direccion')
-      .sort({ createdAt: -1 })
-      .lean();
+    const sb = getSupabase();
+    const { data: ms, error } = await sb
+      .from('memberships')
+      .select('rol, direccion:direcciones(*)')
+      .eq('usuario_id', req.usuario._id)
+      .eq('estado', 'activo')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
 
-    // Filtrar memberships cuya dirección fue borrada
-    const validos = memberships.filter((m) => m.direccion);
-
-    const direcciones = await Promise.all(
-      validos.map(async (m) => {
-        const [timbresCount, familiaresCount] = await Promise.all([
-          Timbre.countDocuments({ direccion: m.direccion._id }),
-          Membership.countDocuments({ direccion: m.direccion._id, estado: 'activo' }),
-        ]);
-        return {
-          ...m.direccion,
-          rol: m.rol,
-          timbresCount,
-          familiaresCount,
-        };
-      })
-    );
+    const validos = (ms || []).filter((m) => m.direccion);
+    const direcciones = await Promise.all(validos.map(async (m) => {
+      const [{ count: timbresCount }, { count: familiaresCount }] = await Promise.all([
+        sb.from('timbres').select('id', { count: 'exact', head: true }).eq('direccion_id', m.direccion.id),
+        sb.from('memberships').select('id', { count: 'exact', head: true }).eq('direccion_id', m.direccion.id).eq('estado', 'activo'),
+      ]);
+      return mapDireccion(m.direccion, { rol: m.rol, timbresCount: timbresCount || 0, familiaresCount: familiaresCount || 0 });
+    }));
 
     res.json({ success: true, direcciones });
   } catch (error) {
@@ -48,45 +35,29 @@ const listDirecciones = async (req, res, next) => {
 };
 
 /**
- * POST /api/direcciones
- * Crea una dirección, hace al usuario dueño y genera un timbre por defecto.
+ * POST /api/direcciones — crea dirección + membership(dueño) + timbre por defecto.
  */
 const createDireccion = async (req, res, next) => {
   try {
     const { nombre, tipo, direccion } = req.body;
-    if (!nombre) {
-      return res.status(400).json({ error: 'El nombre de la dirección es requerido.' });
-    }
+    if (!nombre) return res.status(400).json({ error: 'El nombre de la dirección es requerido.' });
 
-    const nuevaDireccion = await Direccion.create({
-      owner: req.usuario._id,
-      nombre,
-      tipo: tipo || 'Casa',
-      direccion: direccion || '',
-    });
+    const sb = getSupabase();
+    const { data: dir, error } = await sb.from('direcciones')
+      .insert({ owner_id: req.usuario._id, nombre, tipo: tipo || 'Casa', direccion: direccion || '' })
+      .select().single();
+    if (error) throw error;
 
-    await Membership.create({
-      usuario: req.usuario._id,
-      direccion: nuevaDireccion._id,
-      rol: 'dueño',
-    });
-
-    // Timbre por defecto "Puerta" con su QR
-    const timbre = await Timbre.create({
-      direccion: nuevaDireccion._id,
-      nombre: 'Puerta',
-      tipo: 'Timbre particular',
-    });
-    const qr = await generateQRDataURL(timbre.qrId);
-    if (qr.success) {
-      timbre.qrImage = qr.dataURL;
-      await timbre.save();
-    }
+    await sb.from('memberships').insert({ usuario_id: req.usuario._id, direccion_id: dir.id, rol: 'dueño' });
+    const { data: timbre } = await sb.from('timbres')
+      .insert({ direccion_id: dir.id, nombre: 'Puerta', tipo: 'Timbre particular' }).select().single();
+    const qr = await generateQRDataURL(timbre.qr_id);
+    if (qr.success) await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
 
     res.status(201).json({
       success: true,
-      direccion: { ...nuevaDireccion.toJSON(), rol: 'dueño', timbresCount: 1, familiaresCount: 1 },
-      timbre,
+      direccion: mapDireccion(dir, { rol: 'dueño', timbresCount: 1, familiaresCount: 1 }),
+      timbre: mapTimbre(timbre),
     });
   } catch (error) {
     next(error);
@@ -94,41 +65,37 @@ const createDireccion = async (req, res, next) => {
 };
 
 /**
- * GET /api/direcciones/:id
- * Detalle de la unidad: dirección + timbres + familiares.
+ * GET /api/direcciones/:id — detalle (dirección + timbres + familiares).
  */
 const getDireccion = async (req, res, next) => {
   try {
     const rol = await getRol(req.usuario._id, req.params.id);
     if (!rol) return res.status(403).json({ error: 'No tienes acceso a esta dirección.' });
 
-    const direccion = await Direccion.findById(req.params.id);
-    if (!direccion) return res.status(404).json({ error: 'Dirección no encontrada.' });
+    const sb = getSupabase();
+    const { data: dir } = await sb.from('direcciones').select('*').eq('id', req.params.id).maybeSingle();
+    if (!dir) return res.status(404).json({ error: 'Dirección no encontrada.' });
 
-    const [timbres, memberships, invitaciones] = await Promise.all([
-      Timbre.find({ direccion: direccion._id }).sort({ createdAt: 1 }).lean(),
-      Membership.find({ direccion: direccion._id, estado: 'activo' })
-        .populate('usuario', 'nombre apellido email foto_fachada')
-        .lean(),
-      Invitacion.find({ direccion: direccion._id, estado: 'pendiente' }).lean(),
+    const [{ data: timbres }, { data: ms }, { data: invs }] = await Promise.all([
+      sb.from('timbres').select('*').eq('direccion_id', dir.id).order('created_at', { ascending: true }),
+      sb.from('memberships').select('id, rol, usuario:usuarios(id,nombre,apellido,email,foto_fachada)').eq('direccion_id', dir.id).eq('estado', 'activo'),
+      sb.from('invitaciones').select('*').eq('direccion_id', dir.id).eq('estado', 'pendiente'),
     ]);
 
-    const familiares = memberships
-      .filter((m) => m.usuario)
-      .map((m) => ({
-        membershipId: m._id,
-        usuario: m.usuario,
-        rol: m.rol,
-        nombreCompleto: `${m.usuario.nombre} ${m.usuario.apellido}`,
-      }));
+    const familiares = (ms || []).filter((m) => m.usuario).map((m) => ({
+      membershipId: m.id,
+      usuario: { _id: m.usuario.id, nombre: m.usuario.nombre, apellido: m.usuario.apellido, email: m.usuario.email },
+      rol: m.rol,
+      nombreCompleto: `${m.usuario.nombre} ${m.usuario.apellido}`,
+    }));
 
     res.json({
       success: true,
       rol,
-      direccion,
-      timbres,
+      direccion: mapDireccion(dir),
+      timbres: (timbres || []).map(mapTimbre),
       familiares,
-      invitacionesPendientes: invitaciones,
+      invitacionesPendientes: invs || [],
     });
   } catch (error) {
     next(error);
@@ -136,47 +103,41 @@ const getDireccion = async (req, res, next) => {
 };
 
 /**
- * PUT /api/direcciones/:id  (solo dueño)
+ * PUT /api/direcciones/:id (solo dueño)
  */
 const updateDireccion = async (req, res, next) => {
   try {
     const rol = await getRol(req.usuario._id, req.params.id);
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede editar.' });
 
-    const allowed = ['nombre', 'tipo', 'direccion', 'activa'];
     const updates = {};
-    allowed.forEach((f) => {
-      if (req.body[f] !== undefined) updates[f] = req.body[f];
-    });
+    if (req.body.nombre !== undefined) updates.nombre = req.body.nombre;
+    if (req.body.tipo !== undefined) updates.tipo = req.body.tipo;
+    if (req.body.direccion !== undefined) updates.direccion = req.body.direccion;
+    if (req.body.activa !== undefined) updates.activa = req.body.activa;
+    if (req.body.lat !== undefined) updates.lat = req.body.lat;
+    if (req.body.lng !== undefined) updates.lng = req.body.lng;
+    updates.updated_at = new Date().toISOString();
 
-    const direccion = await Direccion.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
-    if (!direccion) return res.status(404).json({ error: 'Dirección no encontrada.' });
-
-    res.json({ success: true, direccion });
+    const sb = getSupabase();
+    const { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json({ success: true, direccion: mapDireccion(dir) });
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * DELETE /api/direcciones/:id  (solo dueño) — borra en cascada.
+ * DELETE /api/direcciones/:id (solo dueño) — cascada por FK.
  */
 const deleteDireccion = async (req, res, next) => {
   try {
     const rol = await getRol(req.usuario._id, req.params.id);
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede eliminar.' });
-
-    await Promise.all([
-      Timbre.deleteMany({ direccion: req.params.id }),
-      Membership.deleteMany({ direccion: req.params.id }),
-      Invitacion.deleteMany({ direccion: req.params.id }),
-      Direccion.findByIdAndDelete(req.params.id),
-    ]);
-
+    const sb = getSupabase();
+    const { error } = await sb.from('direcciones').delete().eq('id', req.params.id);
+    if (error) throw error;
     res.json({ success: true, message: 'Dirección eliminada.' });
   } catch (error) {
     next(error);
@@ -184,38 +145,27 @@ const deleteDireccion = async (req, res, next) => {
 };
 
 /**
- * POST /api/direcciones/:id/foto  (solo dueño)
+ * POST /api/direcciones/:id/foto (solo dueño)
  */
 const uploadFotoDireccion = async (req, res, next) => {
   try {
     const rol = await getRol(req.usuario._id, req.params.id);
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede cambiar la foto.' });
-
     if (!req.file) return res.status(400).json({ error: 'No se proporcionó imagen.' });
 
-    const direccion = await Direccion.findById(req.params.id);
-    if (!direccion) return res.status(404).json({ error: 'Dirección no encontrada.' });
+    const sb = getSupabase();
+    const { data: dir } = await sb.from('direcciones').select('foto').eq('id', req.params.id).maybeSingle();
+    if (!dir) return res.status(404).json({ error: 'Dirección no encontrada.' });
 
-    if (direccion.foto) {
-      const oldPath = path.join(__dirname, '../uploads', path.basename(direccion.foto));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
-
-    const fileUrl = `${process.env.BASE_URL}/uploads/${req.file.filename}`;
-    direccion.foto = fileUrl;
-    await direccion.save();
-
-    res.json({ success: true, foto: fileUrl, direccion });
+    const fileUrl = await uploadImagen(req.file.buffer, req.file.mimetype);
+    if (dir.foto) await borrarImagen(dir.foto);
+    const { data: updated } = await sb.from('direcciones').update({ foto: fileUrl }).eq('id', req.params.id).select().single();
+    res.json({ success: true, foto: fileUrl, direccion: mapDireccion(updated) });
   } catch (error) {
     next(error);
   }
 };
 
 module.exports = {
-  listDirecciones,
-  createDireccion,
-  getDireccion,
-  updateDireccion,
-  deleteDireccion,
-  uploadFotoDireccion,
+  listDirecciones, createDireccion, getDireccion, updateDireccion, deleteDireccion, uploadFotoDireccion,
 };

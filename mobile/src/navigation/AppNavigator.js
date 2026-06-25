@@ -3,10 +3,12 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/theme';
+import RingWatcher from '../components/RingWatcher';
+import { navigationRef } from './navigationRef';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -20,6 +22,7 @@ import EditProfileScreen from '../screens/EditProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import VisitorTestScreen from '../screens/VisitorTestScreen';
 import LoadingScreen from '../screens/LoadingScreen';
+import CallScreen from '../screens/CallScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -55,28 +58,25 @@ const AppTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
       headerShown: false,
-      tabBarShowLabel: true,
-      tabBarActiveTintColor: COLORS.primary,
-      tabBarInactiveTintColor: COLORS.gray400,
-      tabBarStyle: {
-        backgroundColor: COLORS.tabBar,
-        borderTopWidth: 0,
-        height: 86,
-        paddingTop: 8,
-        paddingBottom: 28,
-      },
-      tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-      tabBarIcon: ({ color, size, focused }) => {
-        const icon = route.name === 'InicioTab'
-          ? (focused ? 'home' : 'home-outline')
-          : (focused ? 'person' : 'person-outline');
-        return <Ionicons name={icon} size={size} color={color} />;
-      },
+      tabBarStyle: { display: 'none' }, // barra de tabs oculta; se navega con el avatar / botón atrás
     })}
   >
     <Tab.Screen name="InicioTab" component={InicioStack} options={{ title: 'Inicio' }} />
     <Tab.Screen name="PerfilTab" component={PerfilStack} options={{ title: 'Perfil' }} />
   </Tab.Navigator>
+);
+
+// Stack raíz: tabs + la videollamada como pantalla a pantalla completa
+// (accesible desde cualquier lugar vía navigationRef).
+const MainStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Tabs" component={AppTabs} />
+    <Stack.Screen
+      name="Call"
+      component={CallScreen}
+      options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'fade' }}
+    />
+  </Stack.Navigator>
 );
 
 const navTheme = {
@@ -96,8 +96,9 @@ const AppNavigator = () => {
   if (isLoading) return <LoadingScreen />;
 
   return (
-    <NavigationContainer theme={navTheme}>
-      {isAuthenticated ? <AppTabs /> : <AuthStack />}
+    <NavigationContainer theme={navTheme} ref={navigationRef}>
+      {isAuthenticated ? <MainStack /> : <AuthStack />}
+      {isAuthenticated && <RingWatcher />}
     </NavigationContainer>
   );
 };

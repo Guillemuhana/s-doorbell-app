@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import axios from 'axios';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
@@ -85,7 +86,7 @@ const VisitorTestScreen = ({ navigation, route }) => {
 
         {/* House info */}
         <View style={styles.houseCard}>
-          <Text style={styles.houseEmoji}>🏠</Text>
+          <MaterialCommunityIcons name="home" size={44} color={COLORS.primary} style={{ marginBottom: SPACING.md }} />
           <Text style={styles.houseOwner}>{usuario?.nombre} {usuario?.apellido}</Text>
           {usuario?.direccion && (
             <Text style={styles.houseAddress}>📍 {usuario.direccion}</Text>
@@ -129,7 +130,7 @@ const VisitorTestScreen = ({ navigation, route }) => {
                   <ActivityIndicator color={COLORS.white} size="large" />
                 ) : (
                   <>
-                    <Text style={styles.ringBtnIcon}>{success ? '✅' : '🔔'}</Text>
+                    <MaterialCommunityIcons name={success ? 'check-circle' : 'bell-ring'} size={48} color={COLORS.white} />
                     <Text style={styles.ringBtnText}>
                       {success ? 'TIMBRE ENVIADO' : 'TOCAR TIMBRE'}
                     </Text>

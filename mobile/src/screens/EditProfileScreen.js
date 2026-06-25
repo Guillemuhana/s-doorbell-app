@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { usuarioAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
-const Field = ({ label, value, onChangeText, placeholder, keyboardType, isDark, multiline }) => {
+const Field = ({ label, value, onChangeText, placeholder, keyboardType, isDark, multiline, secureTextEntry, autoCapitalize }) => {
   const textColor = isDark ? COLORS.white : COLORS.gray900;
   return (
     <View style={styles.fieldGroup}>
@@ -23,7 +23,9 @@ const Field = ({ label, value, onChangeText, placeholder, keyboardType, isDark, 
         placeholder={placeholder}
         placeholderTextColor={isDark ? COLORS.gray600 : COLORS.gray300}
         keyboardType={keyboardType || 'default'}
-        autoCapitalize="none"
+        autoCapitalize={autoCapitalize || 'none'}
+        autoCorrect={false}
+        secureTextEntry={secureTextEntry}
         multiline={multiline}
         numberOfLines={multiline ? 3 : 1}
         selectionColor={COLORS.primary}
@@ -39,24 +41,51 @@ const EditProfileScreen = ({ navigation }) => {
   const [form, setForm] = useState({
     nombre: usuario?.nombre || '',
     apellido: usuario?.apellido || '',
+    email: usuario?.email || '',
     telefono: usuario?.telefono || '',
-    direccion: usuario?.direccion || '',
   });
+  const [pass, setPass] = useState({ nueva: '', confirmar: '' });
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fotoPreview, setFotoPreview] = useState(usuario?.foto_fachada || null);
 
   const update = (field) => (val) => setForm(p => ({ ...p, [field]: val }));
+  const updatePass = (field) => (val) => setPass(p => ({ ...p, [field]: val }));
 
   const handleSave = async () => {
     if (!form.nombre.trim() || !form.apellido.trim()) {
       Alert.alert('Error', 'Nombre y apellido son requeridos.');
       return;
     }
+    const email = form.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert('Error', 'Ingresá un email válido.');
+      return;
+    }
+    // Validación de contraseña (sólo si quiere cambiarla)
+    if (pass.nueva || pass.confirmar) {
+      if (pass.nueva.length < 6) {
+        Alert.alert('Error', 'La nueva contraseña debe tener al menos 6 caracteres.');
+        return;
+      }
+      if (pass.nueva !== pass.confirmar) {
+        Alert.alert('Error', 'Las contraseñas no coinciden.');
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const { data } = await usuarioAPI.update(usuario._id, form);
+      const payload = {
+        nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(),
+        email,
+        telefono: form.telefono.trim(),
+      };
+      if (pass.nueva) payload.password = pass.nueva;
+
+      const { data } = await usuarioAPI.update(usuario._id, payload);
       await updateUser(data.usuario);
+      setPass({ nueva: '', confirmar: '' });
       Alert.alert('✅ Guardado', 'Perfil actualizado correctamente.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -156,12 +185,22 @@ const EditProfileScreen = ({ navigation }) => {
               </Text>
             </View>
 
-            {/* Form */}
+            {/* Datos personales */}
             <View style={[styles.card, { backgroundColor: cardBg }]}>
-              <Field label="NOMBRE" value={form.nombre} onChangeText={update('nombre')} placeholder="Tu nombre" isDark={isDark} />
-              <Field label="APELLIDO" value={form.apellido} onChangeText={update('apellido')} placeholder="Tu apellido" isDark={isDark} />
+              <Field label="NOMBRE" value={form.nombre} onChangeText={update('nombre')} placeholder="Tu nombre" autoCapitalize="words" isDark={isDark} />
+              <Field label="APELLIDO" value={form.apellido} onChangeText={update('apellido')} placeholder="Tu apellido" autoCapitalize="words" isDark={isDark} />
+              <Field label="EMAIL" value={form.email} onChangeText={update('email')} placeholder="tucorreo@ejemplo.com" keyboardType="email-address" isDark={isDark} />
               <Field label="TELÉFONO" value={form.telefono} onChangeText={update('telefono')} placeholder="+54 9 11 1234-5678" keyboardType="phone-pad" isDark={isDark} />
-              <Field label="DIRECCIÓN" value={form.direccion} onChangeText={update('direccion')} placeholder="Calle 123, Ciudad" isDark={isDark} multiline />
+            </View>
+
+            {/* Cambio de contraseña */}
+            <View style={[styles.card, { backgroundColor: cardBg }]}>
+              <Text style={[styles.sectionTitle, { color: isDark ? COLORS.gray300 : COLORS.gray600 }]}>CAMBIAR CONTRASEÑA</Text>
+              <Field label="NUEVA CONTRASEÑA" value={pass.nueva} onChangeText={updatePass('nueva')} placeholder="Mínimo 6 caracteres" secureTextEntry isDark={isDark} />
+              <Field label="CONFIRMAR CONTRASEÑA" value={pass.confirmar} onChangeText={updatePass('confirmar')} placeholder="Repetí la contraseña" secureTextEntry isDark={isDark} />
+              <Text style={[styles.passHint, { color: isDark ? COLORS.gray500 : COLORS.gray400 }]}>
+                Dejá estos campos vacíos si no querés cambiarla.
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -203,6 +242,8 @@ const styles = StyleSheet.create({
   photoOverlayText: { color: COLORS.white, fontSize: FONT_SIZES.sm, fontWeight: '600' },
   photoCaption: { color: COLORS.gray400, fontSize: FONT_SIZES.xs, textAlign: 'center', padding: SPACING.sm },
   card: { borderRadius: RADIUS.xl, padding: SPACING.base, gap: SPACING.md, ...SHADOWS.sm },
+  sectionTitle: { fontSize: FONT_SIZES.xs, fontWeight: '800', letterSpacing: 1 },
+  passHint: { fontSize: FONT_SIZES.xs },
   fieldGroup: {},
   fieldLabel: { fontSize: FONT_SIZES.xs, fontWeight: '700', letterSpacing: 1, marginBottom: SPACING.xs },
   fieldInput: {
