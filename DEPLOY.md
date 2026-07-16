@@ -3,10 +3,13 @@
 Todo va a **Vercel**, en **dos proyectos** que salen del mismo repo. Se distinguen
 por el *Root Directory*:
 
-| Proyecto | Root Directory | Qué es |
-|---|---|---|
-| **API** | `backend` | Express como función serverless. Sirve además la web del visitante en `/visit` (la que abre el QR). |
-| **App** | `mobile` | El PWA que instalás en el celular. |
+| Proyecto | Root Directory | URL | Qué es |
+|---|---|---|---|
+| `s-doorbell-app-e1ty` | `backend` | https://s-doorbell-app-e1ty.vercel.app | La **API**: Express como función serverless. Sirve además la web del visitante en `/visit` (la que abre el QR). |
+| `s-doorbell-app` | `mobile` | https://s-doorbell-app.vercel.app | La **App**: el PWA que instalás en el celular. |
+
+Sí, los nombres confunden: `s-doorbell-app` es la app y `s-doorbell-app-e1ty` es
+la API (Vercel le agregó el sufijo solo). El que manda es el **Root Directory**.
 
 La base de datos es Supabase y ya está andando: no se toca.
 
@@ -91,6 +94,15 @@ cargó.
 
 ## Cosas que te van a morder
 
+- **Deployment Protection**: los deployments con hash en la URL
+  (`...-knl77qwu0-...`) nacen protegidos por el SSO de Vercel y redirigen todo a
+  un login: la API se vuelve inalcanzable para la app. Usar siempre la URL de
+  producción, y tener la protección apagada (Settings → Deployment Protection).
+- **El logger rompía la función serverless**: winston crea la carpeta al
+  instanciar un transporte de archivo y en Vercel el filesystem es de solo
+  lectura salvo `/tmp` (`ENOENT mkdir '/var/task/backend/logs'`). Ya está
+  arreglado en `config/logger.js`: si detecta `VERCEL`, loguea a stdout. Si algún
+  día agregás otro transporte de archivo, se rompe de nuevo.
 - **Push con la app cerrada todavía no anda.** Falta Web Push (VAPID + service
   worker). Mientras la app está abierta, el `RingWatcher` detecta los timbrazos
   por polling. Es el pendiente grande.
