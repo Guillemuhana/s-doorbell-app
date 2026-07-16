@@ -1,0 +1,17 @@
+{
+  "name": "S-Doorbell — Timbre digital",
+  "short_name": "S-Doorbell",
+  "description": "Tu timbre digital: recibí a tus visitantes desde el celular, estés donde estés.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#2E9BE0",
+  "lang": "es-AR",
+  "icons": [
+    { "src": "/icons/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/pwa-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

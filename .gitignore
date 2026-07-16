@@ -22,6 +22,7 @@ dist-test/
 .expo/
 web-build/
 *.hbc
+.vercel/
 
 # Firebase / credenciales (no commitear)
 google-services.json

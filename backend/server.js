@@ -37,10 +37,16 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
+// APP_BASE_URL = origen del PWA (la app del residente, servida aparte).
+// Se filtran los vacíos: un undefined en la lista hace que `cors` rechace todo.
+const allowedOrigins = [
+  process.env.VISITOR_BASE_URL,
+  process.env.BASE_URL,
+  process.env.APP_BASE_URL,
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? [process.env.VISITOR_BASE_URL, process.env.BASE_URL]
-    : '*',
+  origin: process.env.NODE_ENV === 'production' ? allowedOrigins : '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));

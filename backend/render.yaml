@@ -1,0 +1,31 @@
+# Deploy del backend en Render (Blueprint).
+# Render → New → Blueprint → apuntar al repo. Las envVars con `sync: false` NO
+# se versionan: las cargás a mano en el dashboard la primera vez.
+services:
+  - type: web
+    name: sdoorbell-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Secretos y URLs: cargar en el dashboard.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      # BASE_URL      = esta misma API   (https://sdoorbell-api.onrender.com)
+      # APP_BASE_URL  = el PWA en Vercel (https://....vercel.app)  → CORS
+      # VISITOR_BASE_URL = la web del visitante (la del QR)        → CORS
+      - key: BASE_URL
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: VISITOR_BASE_URL
+        sync: false

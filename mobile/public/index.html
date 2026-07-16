@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- viewport-fit=cover + safe-area = la app usa toda la pantalla del iPhone,
+         sin barras blancas arriba/abajo cuando corre desde el home screen. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, user-scalable=no"
+    />
+    <title>S-Doorbell</title>
+    <meta name="description" content="Tu timbre digital: recibí a tus visitantes desde el celular." />
+
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#2E9BE0" />
+
+    <!-- iOS no lee el manifest para esto: necesita sus propios meta. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="S-Doorbell" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        overflow: hidden;
+        /* Evita el rebote elástico de Safari, que en standalone se ve como un bug. */
+        overscroll-behavior-y: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <noscript>Necesitás habilitar JavaScript para usar S-Doorbell.</noscript>
+    <div id="root"></div>
+    <script>
+      // El SW solo tiene sentido en contexto seguro (https o localhost).
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js').catch(function (err) {
+            console.warn('SW no registrado:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

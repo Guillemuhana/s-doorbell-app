@@ -237,6 +237,92 @@
       .ring-btn, .ring-btn-wrapper { width: 170px; height: 170px; }
       .ring-btn-emoji { font-size: 42px; }
     }
+
+    /* ─── Botón secundario videollamada ─────────────────────────────────── */
+    .video-btn {
+      width: 100%; height: 54px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: rgba(0,122,255,0.12);
+      border: 1px solid rgba(0,122,255,0.4);
+      border-radius: 14px; color: var(--white);
+      font-size: 15px; font-weight: 700; font-family: var(--font);
+      cursor: pointer; transition: background 0.2s, transform 0.1s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .video-btn:hover { background: rgba(0,122,255,0.2); }
+    .video-btn:active { transform: scale(0.97); }
+    .video-btn-icon { font-size: 20px; }
+
+    /* ─── Pantalla de videollamada ──────────────────────────────────────── */
+    .call-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: var(--black);
+      display: none; flex-direction: column;
+    }
+    .call-overlay.show { display: flex; }
+
+    .call-remote {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; background: var(--gray-900);
+    }
+    .call-local {
+      position: absolute; top: 20px; right: 16px; z-index: 3;
+      width: 110px; height: 150px;
+      object-fit: cover; border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: var(--gray-800);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      transform: scaleX(-1); /* espejo de cámara frontal */
+    }
+
+    .call-topbar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+      padding: 24px 20px 40px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+      text-align: center;
+    }
+    .call-title { font-size: 18px; font-weight: 800; }
+    .call-status {
+      margin-top: 6px; font-size: 13px; color: var(--gray-400);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .call-status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success); display: inline-block;
+    }
+    .call-status.calling .dot { background: #FFCC00; animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .call-center {
+      position: absolute; inset: 0; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      text-align: center; padding: 24px;
+    }
+    .call-center .spinner { margin: 0 auto; }
+    .call-center-text { color: var(--gray-400); font-size: 15px; }
+
+    .call-controls {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 3;
+      padding: 24px 24px 40px;
+      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+      display: flex; align-items: center; justify-content: center; gap: 28px;
+    }
+    .call-ctrl {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: none; border: none; color: var(--white);
+      font-size: 11px; font-family: var(--font); cursor: pointer;
+    }
+    .call-ctrl-icon {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; transition: background 0.2s, transform 0.1s;
+    }
+    .call-ctrl:active .call-ctrl-icon { transform: scale(0.92); }
+    .call-ctrl.off .call-ctrl-icon { background: rgba(255,255,255,0.4); }
+    .call-ctrl.hangup .call-ctrl-icon { background: var(--error); width: 68px; height: 68px; }
   </style>
 </head>
 <body>
@@ -248,6 +334,36 @@
         <div class="spinner" style="margin: 0 auto;"></div>
         <p class="loading-title">Cargando timbre...</p>
       </div>
+    </div>
+  </div>
+
+  <!-- ─── Pantalla de videollamada ─── -->
+  <div class="call-overlay" id="call-overlay">
+    <video class="call-remote" id="remote-video" autoplay playsinline></video>
+    <video class="call-local" id="local-video" autoplay playsinline muted></video>
+
+    <div class="call-topbar">
+      <div class="call-title">Videollamada</div>
+      <div class="call-status calling" id="call-status">
+        <span class="dot"></span><span id="call-status-text">Llamando…</span>
+      </div>
+    </div>
+
+    <div class="call-center" id="call-center">
+      <div class="spinner"></div>
+      <p class="call-center-text" id="call-center-text">Esperando que atiendan…</p>
+    </div>
+
+    <div class="call-controls">
+      <button class="call-ctrl" id="ctrl-mic" onclick="toggleMic()">
+        <span class="call-ctrl-icon">🎤</span><span>Silenciar</span>
+      </button>
+      <button class="call-ctrl hangup" onclick="hangupCall()">
+        <span class="call-ctrl-icon">📵</span><span>Finalizar</span>
+      </button>
+      <button class="call-ctrl" id="ctrl-cam" onclick="switchCamera()">
+        <span class="call-ctrl-icon">🔄</span><span>Cámara</span>
+      </button>
     </div>
   </div>
 
@@ -379,6 +495,11 @@
             <p class="ring-hint" id="ring-hint">Toca el botón para avisar que estás en la puerta</p>
           </div>
 
+          <button class="video-btn" id="video-btn" onclick="startVideoCall()">
+            <span class="video-btn-icon">📹</span>
+            <span>Iniciar videollamada</span>
+          </button>
+
           <div class="status-msg" id="status-msg"></div>
 
           <p class="footer">
@@ -417,6 +538,196 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+    }
+
+    // ═══ VIDEOLLAMADA (WebRTC) ═════════════════════════════════════════════════
+    let pc = null;            // RTCPeerConnection
+    let localStream = null;
+    let callId = null;
+    let pollTimer = null;
+    let pollCursor = 0;
+    let callActive = false;
+    let usingFront = true;    // cámara frontal por defecto
+    let durTimer = null;
+
+    const callOverlay = () => document.getElementById('call-overlay');
+
+    function setCallStatus(text, connected) {
+      const wrap = document.getElementById('call-status');
+      const txt = document.getElementById('call-status-text');
+      if (txt) txt.textContent = text;
+      if (wrap) wrap.classList.toggle('calling', !connected);
+    }
+
+    function showCallCenter(text) {
+      const c = document.getElementById('call-center');
+      const t = document.getElementById('call-center-text');
+      if (t && text) t.textContent = text;
+      if (c) c.style.display = text ? 'flex' : 'none';
+    }
+
+    async function startVideoCall() {
+      if (callActive) return;
+      const visitorName = document.getElementById('visitor-name')?.value?.trim() || '';
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: usingFront ? 'user' : 'environment' },
+          audio: true,
+        });
+      } catch (err) {
+        alert('Necesitamos permiso de cámara y micrófono para la videollamada.');
+        return;
+      }
+
+      callActive = true;
+      callOverlay().classList.add('show');
+      document.getElementById('local-video').srcObject = localStream;
+      setCallStatus('Llamando…', false);
+      showCallCenter('Esperando que atiendan…');
+
+      try {
+        // 1) Crear la sesión y notificar a los residentes.
+        const startRes = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorName }),
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok || !startData.success) throw new Error(startData.error || 'No se pudo iniciar la llamada');
+        callId = startData.callId;
+
+        // 2) Crear el peer y la oferta.
+        pc = new RTCPeerConnection({ iceServers: startData.iceServers || [] });
+        localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+        pc.ontrack = (e) => {
+          document.getElementById('remote-video').srcObject = e.streams[0];
+          showCallCenter('');
+          setCallStatus('Conectado', true);
+          startDuration();
+        };
+        pc.onicecandidate = (e) => {
+          if (e.candidate) sendSignal('ice', e.candidate.toJSON());
+        };
+        pc.onconnectionstatechange = () => {
+          if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && callActive) {
+            endCall('Llamada finalizada');
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
+
+        // 3) Empezar a recibir señales del residente.
+        startPolling();
+      } catch (err) {
+        endCall(err.message || 'No se pudo iniciar la llamada');
+      }
+    }
+
+    async function sendSignal(tipo, payload) {
+      if (!callId) return;
+      try {
+        await fetch(`${API_BASE}/api/calls/${callId}/visitor/signal`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo, payload }),
+        });
+      } catch { /* reintenta en el próximo ICE/poll */ }
+    }
+
+    function startPolling() {
+      const poll = async () => {
+        if (!callActive || !callId) return;
+        try {
+          const res = await fetch(`${API_BASE}/api/calls/${callId}/visitor/poll?after=${pollCursor}`);
+          const data = await res.json();
+          if (!data.success) return;
+
+          if (['ended', 'rejected', 'timeout'].includes(data.estado)) {
+            endCall(data.estado === 'rejected' ? 'Llamada rechazada' : 'Llamada finalizada');
+            return;
+          }
+          if (data.estado === 'accepted') setCallStatus('Conectando…', false);
+
+          pollCursor = data.cursor || pollCursor;
+          for (const sig of data.signals || []) {
+            await handleRemoteSignal(sig);
+          }
+        } catch { /* sin red: reintenta */ }
+      };
+      poll();
+      pollTimer = setInterval(poll, 1200);
+    }
+
+    async function handleRemoteSignal(sig) {
+      if (!pc) return;
+      try {
+        if (sig.tipo === 'answer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
+        } else if (sig.tipo === 'ice') {
+          await pc.addIceCandidate(new RTCIceCandidate(sig.payload));
+        }
+      } catch (e) { /* ignorar candidatos fuera de orden */ }
+    }
+
+    function toggleMic() {
+      if (!localStream) return;
+      const track = localStream.getAudioTracks()[0];
+      if (!track) return;
+      track.enabled = !track.enabled;
+      document.getElementById('ctrl-mic').classList.toggle('off', !track.enabled);
+    }
+
+    async function switchCamera() {
+      if (!localStream || !pc) return;
+      usingFront = !usingFront;
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: usingFront ? 'user' : 'environment' }, audio: true,
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+        if (sender && newTrack) await sender.replaceTrack(newTrack);
+        // Reemplazar el track de video en el stream local mostrado.
+        localStream.getVideoTracks().forEach((t) => { t.stop(); localStream.removeTrack(t); });
+        localStream.addTrack(newTrack);
+        document.getElementById('local-video').srcObject = localStream;
+      } catch { usingFront = !usingFront; }
+    }
+
+    function startDuration() {
+      if (durTimer) return;
+      const t0 = Date.now();
+      durTimer = setInterval(() => {
+        const s = Math.floor((Date.now() - t0) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        setCallStatus(`Conectado · ${mm}:${ss}`, true);
+      }, 1000);
+    }
+
+    async function hangupCall() {
+      if (callId) {
+        try {
+          await fetch(`${API_BASE}/api/calls/${callId}/visitor/hangup`, { method: 'POST' });
+        } catch {}
+      }
+      endCall('Llamada finalizada');
+    }
+
+    function endCall(msg) {
+      callActive = false;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (durTimer) { clearInterval(durTimer); durTimer = null; }
+      if (pc) { try { pc.close(); } catch {} pc = null; }
+      if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+      callId = null; pollCursor = 0;
+      callOverlay().classList.remove('show');
+      const rv = document.getElementById('remote-video');
+      if (rv) rv.srcObject = null;
+      showCallCenter('Esperando que atiendan…');
+      setCallStatus('Llamando…', false);
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────
