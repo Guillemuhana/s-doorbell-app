@@ -63,13 +63,16 @@ const getQR = async (req, res, next) => {
     if (error === 404) return res.status(404).json({ error: 'Timbre no encontrado.' });
     if (error === 403) return res.status(403).json({ error: 'Sin acceso.' });
 
+    // El PNG guardado tiene la URL del visitante HORNEADA adentro, y esa URL sale
+    // de VISITOR_BASE_URL. Si el entorno cambia (dev → deploy, o la IP de la LAN),
+    // el guardado queda apuntando a un servidor que ya no existe y el visitante
+    // ve el navegador colgado hasta el timeout. Por eso se regenera siempre y se
+    // refresca el guardado cuando difiere, en vez de cachearlo para siempre.
     const sb = getSupabase();
-    if (!timbre.qr_image) {
-      const qr = await generateQRDataURL(timbre.qr_id);
-      if (qr.success) {
-        await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
-        timbre.qr_image = qr.dataURL;
-      }
+    const qr = await generateQRDataURL(timbre.qr_id);
+    if (qr.success && qr.dataURL !== timbre.qr_image) {
+      await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
+      timbre.qr_image = qr.dataURL;
     }
     res.json({
       success: true,
