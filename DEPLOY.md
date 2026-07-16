@@ -1,67 +1,63 @@
 # Deploy de S-Doorbell
 
-Tres piezas, dos servicios:
+Todo va a **Vercel**, en **dos proyectos** que salen del mismo repo. Se distinguen
+por el *Root Directory*:
 
-| Pieza | Dónde | Qué es |
+| Proyecto | Root Directory | Qué es |
 |---|---|---|
-| **API** (`backend/`) | Render | Express + Supabase |
-| **Web del visitante** (`visitor-web/`) | Render, dentro de la API | La página que abre el QR (`/visit`) |
-| **App del residente** (`mobile/`) | Vercel | El PWA que instalás en el celular |
+| **API** | `backend` | Express como función serverless. Sirve además la web del visitante en `/visit` (la que abre el QR). |
+| **App** | `mobile` | El PWA que instalás en el celular. |
 
-> **El orden importa.** Hay una dependencia circular: la API necesita saber la URL
-> del PWA (para el CORS) y el PWA necesita saber la URL de la API. Por eso Render
-> se configura en dos pasos, con Vercel en el medio.
+La base de datos es Supabase y ya está andando: no se toca.
 
----
+> **Por qué serverless y no un server tradicional**: el backend es *stateless* —
+> las fotos van a Supabase Storage (`services/storageService.js`), no al disco. No
+> necesita disco ni proceso vivo. En los planes free con servidor persistente
+> (Render, Fly) la instancia se duerme y el primer request tarda ~50 s en
+> despertar: para un timbre eso no sirve. Un cold start serverless es de ~1-2 s.
 
-## 0. Subir el código a GitHub
-
-El repo `sdoobeel` tiene el prototipo viejo en Next.js (enero 2026) y **no se toca**.
-Este proyecto va a un repo nuevo.
-
-1. Crear un repo **vacío** en github.com (sin README, sin .gitignore), ej. `s-doorbell-app`.
-2. Conectarlo y subir:
-
-```bash
-git remote rename origin legacy-nextjs   # conserva el link al repo viejo
-git remote add origin https://github.com/TU-USUARIO/s-doorbell-app.git
-git push -u origin main
-```
+> **El orden importa.** Hay una dependencia circular: la API necesita la URL del
+> PWA (para el CORS) y el PWA necesita la URL de la API (para compilar). Por eso
+> la API se configura en dos tandas, con la App en el medio.
 
 ---
 
-## 1. API en Render
+## 1. API (proyecto Vercel #1)
 
-1. Render → **New → Blueprint** → elegir el repo. Detecta `backend/render.yaml`.
-2. Cargar las variables marcadas `sync: false` (las que no se versionan):
-
-   | Variable | Valor |
-   |---|---|
-   | `SUPABASE_URL` | el de `backend/.env` |
-   | `SUPABASE_SERVICE_KEY` | el de `backend/.env` |
-   | `JWT_SECRET` | el de `backend/.env` (si lo cambiás, se deslogean todos) |
-   | `BASE_URL` | *(vacío por ahora — no sabés la URL todavía)* |
-   | `VISITOR_BASE_URL` | *(vacío por ahora)* |
-   | `APP_BASE_URL` | *(vacío por ahora)* |
-
-3. Deploy. Al terminar, Render te da una URL: `https://sdoorbell-api.onrender.com`.
-4. Verificar que vive: abrir `https://sdoorbell-api.onrender.com/health`.
-5. Volver a las env vars y completar, ahora que sabés la URL:
-   - `BASE_URL` = `https://sdoorbell-api.onrender.com`
-   - `VISITOR_BASE_URL` = `https://sdoorbell-api.onrender.com/visit`
-
----
-
-## 2. PWA en Vercel
-
-1. Vercel → **Add New → Project** → importar el mismo repo.
-2. **Root Directory: `mobile`** ← clave. Sin esto no encuentra nada.
-   El resto lo toma de `mobile/vercel.json`.
+1. Vercel → **Add New → Project** → importar `s-doorbell-app`.
+2. **Root Directory: `backend`**.
 3. Environment Variables:
 
    | Variable | Valor |
    |---|---|
-   | `EXPO_PUBLIC_API_BASE_URL` | `https://sdoorbell-api.onrender.com` |
+   | `NODE_ENV` | `production` |
+   | `SUPABASE_URL` | el de `backend/.env` |
+   | `SUPABASE_SERVICE_KEY` | el de `backend/.env` |
+   | `JWT_SECRET` | el de `backend/.env` (si lo cambiás, se deslogean todos) |
+
+   Las tres URLs (`BASE_URL`, `VISITOR_BASE_URL`, `APP_BASE_URL`) van después:
+   todavía no las conocés.
+
+4. Deploy → te da algo como `https://s-doorbell-api.vercel.app`.
+5. Verificar que vive: abrir `https://s-doorbell-api.vercel.app/health`.
+6. Volver a Environment Variables y agregar, ahora que sabés la URL:
+
+   | Variable | Valor |
+   |---|---|
+   | `BASE_URL` | `https://s-doorbell-api.vercel.app` |
+   | `VISITOR_BASE_URL` | `https://s-doorbell-api.vercel.app/visit` |
+
+---
+
+## 2. App / PWA (proyecto Vercel #2)
+
+1. Vercel → **Add New → Project** → importar **el mismo repo** otra vez.
+2. **Root Directory: `mobile`** ← clave. El resto lo toma de `mobile/vercel.json`.
+3. Environment Variables:
+
+   | Variable | Valor |
+   |---|---|
+   | `EXPO_PUBLIC_API_BASE_URL` | `https://s-doorbell-api.vercel.app` |
 
    Sin `/api` al final: `api.js` lo agrega solo.
 
@@ -71,18 +67,20 @@ git push -u origin main
 
 ## 3. Cerrar el círculo
 
-Volver a Render y setear:
+Volver al proyecto **API** y agregar:
 
-- `APP_BASE_URL` = `https://s-doorbell-app.vercel.app`
+| Variable | Valor |
+|---|---|
+| `APP_BASE_URL` | `https://s-doorbell-app.vercel.app` |
 
-Render redeploya solo. **Sin esto el CORS bloquea la app** y vas a ver "Network
-Error" en cada login, sin ninguna pista de por qué.
+Redeploy de la API. **Sin esto el CORS bloquea la app**: vas a ver "Network Error"
+en cada login, sin ninguna pista de por qué.
 
 ---
 
 ## 4. Instalar en el iPhone
 
-1. Abrir la URL de Vercel **en Safari** (Chrome en iOS no puede instalar PWAs).
+1. Abrir la URL de la App **en Safari** (Chrome en iOS no puede instalar PWAs).
 2. Compartir → **Agregar a pantalla de inicio**.
 3. Abrirla desde el ícono, no desde Safari.
 
@@ -93,15 +91,20 @@ cargó.
 
 ## Cosas que te van a morder
 
-- **Render free se duerme** a los 15 min de inactividad; el primer request tarda
-  ~50 s en despertar. Para un timbre es inaceptable → plan pago o un ping que lo
-  mantenga vivo.
-- **El disco de Render es efímero**: las fotos de casas en `backend/uploads/`
-  desaparecen en cada deploy. Hay que moverlas a Supabase Storage.
 - **Push con la app cerrada todavía no anda.** Falta Web Push (VAPID + service
   worker). Mientras la app está abierta, el `RingWatcher` detecta los timbrazos
-  por polling.
-- **La cámara y el service worker exigen HTTPS.** Todo esto es imposible de probar
+  por polling. Es el pendiente grande.
+- **La videollamada todavía no anda en web.** `CallScreen.js` busca
+  `react-native-webrtc` (módulo nativo) y muestra "solo en dev build". En el
+  navegador hay que usar las APIs nativas de WebRTC: falta escribir esa variante.
+- **La cámara y el service worker exigen HTTPS.** Nada de esto se puede probar
   sobre `http://192.168.x.x`.
+- **Metro cachea la config**: `expo export -p web` sin `--clear` reusa el bundle
+  viejo y deja la IP de la LAN hardcodeada, aunque la env var esté bien. Por eso
+  `build:web` lleva `--clear`. Si el PWA deployado le pega a `192.168.0.184`, es
+  esto.
 - Si tocás la web del visitante, acordate de que hay **dos copias**
   (`visitor-web/` y `backend/visitor-web/`) y `server.js` sirve la de `backend/`.
+- **El dashboard de Supabase no es accesible** con la cuenta actual (el proyecto
+  `vdnmloiffquaylohzdzb` es de otra). La service key funciona, así que la app anda,
+  pero no se pueden correr migraciones nuevas hasta recuperar esa cuenta.
