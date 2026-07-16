@@ -333,6 +333,7 @@
       <div id="loading-state" class="loading-state">
         <div class="spinner" style="margin: 0 auto;"></div>
         <p class="loading-title">Cargando timbre...</p>
+        <p class="loading-title" id="watchdog-msg" style="display:none; font-size:14px; color:#8E8E93; margin-top:16px;"></p>
       </div>
     </div>
   </div>
@@ -367,9 +368,48 @@
     </div>
   </div>
 
+  <!--
+    VIGÍA. Bloque separado y en ES5 estricto: si el bloque principal de JS no
+    parsea (un token que este navegador no entiende tumba el archivo entero, sin
+    error visible), la página se quedaría en "Cargando timbre..." para siempre.
+    Esto detecta ese caso y al menos le dice al visitante qué pasa.
+    NO usar sintaxis moderna acá adentro. Es la última línea de defensa.
+  -->
   <script>
+    (function () {
+      var t = setTimeout(function () {
+        var loading = document.getElementById('loading-state');
+        if (!loading || loading.style.display === 'none') return; // ya cargó
+        var msg = document.getElementById('watchdog-msg');
+        if (msg) {
+          msg.style.display = 'block';
+          msg.innerHTML = 'Esto está tardando más de lo normal.<br>' +
+            'Probá recargar la página. Si sigue igual, avisale al dueño de casa ' +
+            'que su timbre no está funcionando.';
+        }
+      }, 12000);
+      window.__cancelWatchdog = function () { clearTimeout(t); };
+    })();
+  </script>
+
+  <script>
+    // NOTA: el vigía de arriba va en su propio bloque y en sintaxis vieja a
+    // propósito — si este bloque no parsea, aquel sigue vivo y avisa.
+
+    // ⚠ Esta página la abre el teléfono de CUALQUIER visitante, incluidos
+    // equipos viejos que nunca se actualizaron. Un solo token que Safari no
+    // entienda tumba el archivo ENTERO al parsearlo: no corre nada, no salta
+    // ningún error y la página queda clavada en "Cargando timbre...".
+    // Por eso acá NO se usa optional chaining (?.) ni nullish (??), que exigen
+    // iOS 13.4+. Mantener este archivo compatible con iOS 12.
     const API_BASE = ''; // Served from same domain
     const qrId = window.location.pathname.split('/').filter(Boolean).pop();
+
+    // Lee el nombre que escribió el visitante, tolerando que el input no exista.
+    function leerNombreVisitante() {
+      const el = document.getElementById('visitor-name');
+      return el && el.value ? el.value.trim() : '';
+    }
 
     let casa = null;
     let ringing = false;
@@ -403,7 +443,7 @@
       const btn = document.getElementById('ring-btn');
       const hint = document.getElementById('ring-hint');
       const statusMsg = document.getElementById('status-msg');
-      const visitorName = document.getElementById('visitor-name')?.value?.trim() || '';
+      const visitorName = leerNombreVisitante();
 
       btn.classList.add('ringing');
       btn.innerHTML = `<div class="spinner"></div>`;
@@ -451,6 +491,7 @@
 
     // ─── Render ───────────────────────────────────────────────────────────────
     function render() {
+      if (window.__cancelWatchdog) window.__cancelWatchdog();
       const app = document.getElementById('app');
       app.innerHTML = `
         <div class="page-content">
@@ -510,7 +551,7 @@
 
       // Hover glow effect for desktop
       const btn = document.getElementById('ring-btn');
-      const glow = btn?.previousElementSibling;
+      const glow = btn && btn.previousElementSibling;
       if (btn && glow) {
         btn.addEventListener('mouseenter', () => glow.style.opacity = '1');
         btn.addEventListener('mouseleave', () => glow.style.opacity = '0');
@@ -518,6 +559,7 @@
     }
 
     function renderError(msg, retry) {
+      if (window.__cancelWatchdog) window.__cancelWatchdog();
       const app = document.getElementById('app');
       app.innerHTML = `
         <div class="page-content">
@@ -568,7 +610,7 @@
 
     async function startVideoCall() {
       if (callActive) return;
-      const visitorName = document.getElementById('visitor-name')?.value?.trim() || '';
+      const visitorName = leerNombreVisitante();
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -633,7 +675,7 @@
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tipo, payload }),
         });
-      } catch { /* reintenta en el próximo ICE/poll */ }
+      } catch (e) { /* reintenta en el próximo ICE/poll */ }
     }
 
     function startPolling() {
@@ -654,7 +696,7 @@
           for (const sig of data.signals || []) {
             await handleRemoteSignal(sig);
           }
-        } catch { /* sin red: reintenta */ }
+        } catch (e) { /* sin red: reintenta */ }
       };
       poll();
       pollTimer = setInterval(poll, 1200);
@@ -693,7 +735,7 @@
         localStream.getVideoTracks().forEach((t) => { t.stop(); localStream.removeTrack(t); });
         localStream.addTrack(newTrack);
         document.getElementById('local-video').srcObject = localStream;
-      } catch { usingFront = !usingFront; }
+      } catch (e) { usingFront = !usingFront; }
     }
 
     function startDuration() {
@@ -711,7 +753,7 @@
       if (callId) {
         try {
           await fetch(`${API_BASE}/api/calls/${callId}/visitor/hangup`, { method: 'POST' });
-        } catch {}
+        } catch (e) {}
       }
       endCall('Llamada finalizada');
     }
@@ -720,7 +762,7 @@
       callActive = false;
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       if (durTimer) { clearInterval(durTimer); durTimer = null; }
-      if (pc) { try { pc.close(); } catch {} pc = null; }
+      if (pc) { try { pc.close(); } catch (e) {} pc = null; }
       if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
       callId = null; pollCursor = 0;
       callOverlay().classList.remove('show');
