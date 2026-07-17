@@ -33,8 +33,29 @@ checkSupabase()
   .catch((e) => logger.error('❌ Supabase no disponible:', e.message));
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
+// La CSP por defecto de helmet es `script-src 'self'`, que BLOQUEA todo script
+// escrito dentro del HTML. La página del visitante (visitor-web/index.html) es
+// justamente scripts inline + manejadores onclick, así que con la CSP por
+// defecto Safari no ejecuta NADA y la página queda clavada en "Cargando timbre".
+// (Ojo: curl y los simuladores no aplican CSP, sólo un navegador real → el bug
+// sólo se ve en el teléfono.) Además la foto de la casa vive en Supabase Storage,
+// que `img-src 'self'` también bloquea.
+// Este backend sólo sirve esa página estática + JSON, así que relajar script-src
+// a inline es de alcance acotado; el escape de datos (escapeHtml) sigue siendo la
+// defensa real contra XSS.
+const cspDefaults = helmet.contentSecurityPolicy.getDefaultDirectives();
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      ...cspDefaults,
+      'script-src': ["'self'", "'unsafe-inline'"],
+      'script-src-attr': ["'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'https:'],
+      'connect-src': ["'self'", 'https:'],
+      'media-src': ["'self'", 'https:', 'data:'],
+    },
+  },
 }));
 
 // APP_BASE_URL = origen del PWA (la app del residente, servida aparte).

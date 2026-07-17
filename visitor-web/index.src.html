@@ -520,7 +520,7 @@
               ? `<img src="${casa.foto_fachada}" alt="Fachada" class="house-photo" />`
               : `<div class="house-photo-placeholder">
                   <span class="house-photo-placeholder-icon">🏠</span>
-                  <span class="house-photo-placeholder-text">Casa de ${casa.nombreCompleto}</span>
+                  <span class="house-photo-placeholder-text">Casa de ${escapeHtml(casa.nombreCompleto)}</span>
                 </div>`
             }
             <div class="house-info">
