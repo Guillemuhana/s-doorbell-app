@@ -377,17 +377,32 @@
   -->
   <script>
     (function () {
+      // ── DIAGNÓSTICO TEMPORAL (v4) ──────────────────────────────────────────
+      // Pinta el estado en la propia pantalla del visitante, para saber en un
+      // teléfono real: (1) si este JS corre, (2) si el bloque principal parsea,
+      // (3) qué error salta. Se saca cuando terminemos de diagnosticar.
+      function diag(txt, color) {
+        var m = document.getElementById('watchdog-msg');
+        if (!m) return;
+        m.style.display = 'block';
+        if (color) m.style.color = color;
+        m.innerHTML = txt;
+      }
+      // (1) Si ves esto, el JavaScript SÍ corre en este teléfono.
+      diag('diagnóstico v4: JavaScript OK, cargando datos…', '#8E8E93');
+
+      // (3) Cualquier error de parseo o ejecución de OTROS scripts cae acá.
+      window.onerror = function (msg, url, line, col) {
+        diag('ERROR en la página:<br>' + msg + '<br>(línea ' + line + ':' + col + ')', '#FF6B6B');
+        return false;
+      };
+
       var t = setTimeout(function () {
         var loading = document.getElementById('loading-state');
         if (!loading || loading.style.display === 'none') return; // ya cargó
-        var msg = document.getElementById('watchdog-msg');
-        if (msg) {
-          msg.style.display = 'block';
-          msg.innerHTML = 'Esto está tardando más de lo normal.<br>' +
-            'Probá recargar la página. Si sigue igual, avisale al dueño de casa ' +
-            'que su timbre no está funcionando.';
-        }
-      }, 12000);
+        diag('Tarda más de lo normal. Si ves esto, el JS corre pero no llegan ' +
+          'los datos del servidor.', '#FFA500');
+      }, 10000);
       window.__cancelWatchdog = function () { clearTimeout(t); };
     })();
   </script>
