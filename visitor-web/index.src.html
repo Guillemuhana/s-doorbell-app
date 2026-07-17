@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>S-Doorbell — Tocar Timbre</title>
+  <meta name="description" content="Timbre digital inteligente" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="S-Doorbell" />
+  <meta property="og:description" content="Toca el timbre digital" />
+  <meta property="og:type" content="website" />
+
+  <style>
+    :root {
+      --blue: #007AFF;
+      --blue-dark: #0056CC;
+      --blue-glow: rgba(0, 122, 255, 0.35);
+      --success: #34C759;
+      --error: #FF3B30;
+      --white: #FFFFFF;
+      --gray-400: #8E8E93;
+      --gray-600: #48484A;
+      --gray-800: #2C2C2E;
+      --gray-900: #1C1C1E;
+      --black: #000000;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font);
+      overflow-x: hidden;
+    }
+
+    #app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+    }
+
+    /* Ambient glow effects */
+    .glow-top {
+      position: fixed; top: -100px; left: 50%;
+      transform: translateX(-50%);
+      width: 400px; height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,122,255,0.15) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    .glow-bottom {
+      position: fixed; bottom: -150px; right: -100px;
+      width: 350px; height: 350px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,122,255,0.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .page-content {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column;
+      align-items: center; gap: 24px;
+    }
+
+    /* Brand header */
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      opacity: 0; animation: fadeDown 0.6s ease forwards;
+    }
+    .brand-icon { font-size: 24px; }
+    .brand-name {
+      font-size: 18px; font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--white), rgba(255,255,255,0.7));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* House card */
+    .house-card {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px;
+      overflow: hidden;
+      opacity: 0; animation: fadeUp 0.6s ease 0.2s forwards;
+    }
+
+    .house-photo {
+      width: 100%; height: 180px;
+      object-fit: cover; display: block;
+      background: rgba(0,122,255,0.1);
+    }
+
+    .house-photo-placeholder {
+      width: 100%; height: 180px;
+      background: linear-gradient(135deg, rgba(0,122,255,0.15), rgba(0,86,204,0.08));
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+    }
+    .house-photo-placeholder-icon { font-size: 48px; }
+    .house-photo-placeholder-text { color: var(--gray-400); font-size: 13px; }
+
+    .house-info { padding: 20px; }
+    .house-owner { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .house-address { font-size: 14px; color: var(--gray-400); margin-top: 6px; }
+
+    /* Visitor name input */
+    .name-section {
+      width: 100%;
+      opacity: 0; animation: fadeUp 0.6s ease 0.35s forwards;
+    }
+    .name-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--gray-400); text-transform: uppercase;
+      margin-bottom: 8px; display: block;
+    }
+    .name-input {
+      width: 100%; height: 52px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      color: var(--white); font-size: 16px;
+      padding: 0 16px; outline: none;
+      font-family: var(--font);
+      transition: border-color 0.2s;
+    }
+    .name-input::placeholder { color: var(--gray-600); }
+    .name-input:focus { border-color: rgba(0,122,255,0.5); }
+
+    /* THE BUTTON */
+    .ring-section {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 20px;
+      opacity: 0; animation: fadeUp 0.6s ease 0.5s forwards;
+    }
+
+    .ring-btn-wrapper {
+      position: relative;
+      width: 200px; height: 200px;
+    }
+
+    .ring-btn-glow {
+      position: absolute; inset: -20px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--blue-glow) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .ring-btn {
+      width: 200px; height: 200px;
+      border-radius: 50%; border: none; cursor: pointer;
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      position: relative; z-index: 1;
+      box-shadow: 0 8px 32px rgba(0,122,255,0.4), 0 2px 8px rgba(0,0,0,0.4);
+      transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s;
+      -webkit-user-select: none; user-select: none;
+    }
+
+    .ring-btn:hover .ring-btn-glow { opacity: 1; }
+    .ring-btn:active { transform: scale(0.93); box-shadow: 0 4px 16px rgba(0,122,255,0.3); }
+    .ring-btn.ringing { transform: scale(0.95); opacity: 0.8; cursor: not-allowed; }
+    .ring-btn.success { background: linear-gradient(135deg, var(--success), #27A24B); box-shadow: 0 8px 32px rgba(52,199,89,0.4); }
+
+    .ring-btn-emoji { font-size: 52px; pointer-events: none; }
+    .ring-btn-text {
+      color: var(--white); font-size: 13px; font-weight: 900;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .ring-hint { color: var(--gray-400); font-size: 13px; text-align: center; line-height: 1.5; }
+
+    /* Status messages */
+    .status-msg {
+      width: 100%; padding: 14px 18px;
+      border-radius: 16px; font-size: 14px; font-weight: 600;
+      text-align: center; display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .status-msg.show { display: block; }
+    .status-msg.success { background: rgba(52,199,89,0.15); color: var(--success); border: 1px solid rgba(52,199,89,0.3); }
+    .status-msg.error { background: rgba(255,59,48,0.15); color: var(--error); border: 1px solid rgba(255,59,48,0.3); }
+
+    /* Loading spinner */
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: var(--white);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Error state */
+    .error-page {
+      text-align: center; opacity: 0;
+      animation: fadeUp 0.6s ease forwards;
+    }
+    .error-icon { font-size: 64px; margin-bottom: 16px; }
+    .error-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .error-text { color: var(--gray-400); font-size: 15px; }
+
+    /* Footer */
+    .footer {
+      color: var(--gray-600); font-size: 12px; text-align: center;
+      opacity: 0; animation: fadeUp 0.6s ease 0.7s forwards;
+    }
+    .footer a { color: var(--blue); text-decoration: none; }
+
+    /* Loading state */
+    .loading-state { text-align: center; opacity: 0; animation: fadeIn 0.4s ease forwards; }
+    .loading-title { font-size: 16px; color: var(--gray-400); margin-top: 16px; }
+
+    /* Animations */
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(15deg); } 40% { transform: rotate(-15deg); } 60% { transform: rotate(10deg); } 80% { transform: rotate(-10deg); } }
+    .ring-anim { animation: ring 0.5s ease; }
+
+    @media (max-width: 380px) {
+      .ring-btn, .ring-btn-wrapper { width: 170px; height: 170px; }
+      .ring-btn-emoji { font-size: 42px; }
+    }
+
+    /* ─── Botón secundario videollamada ─────────────────────────────────── */
+    .video-btn {
+      width: 100%; height: 54px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: rgba(0,122,255,0.12);
+      border: 1px solid rgba(0,122,255,0.4);
+      border-radius: 14px; color: var(--white);
+      font-size: 15px; font-weight: 700; font-family: var(--font);
+      cursor: pointer; transition: background 0.2s, transform 0.1s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .video-btn:hover { background: rgba(0,122,255,0.2); }
+    .video-btn:active { transform: scale(0.97); }
+    .video-btn-icon { font-size: 20px; }
+
+    /* ─── Pantalla de videollamada ──────────────────────────────────────── */
+    .call-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: var(--black);
+      display: none; flex-direction: column;
+    }
+    .call-overlay.show { display: flex; }
+
+    .call-remote {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; background: var(--gray-900);
+    }
+    .call-local {
+      position: absolute; top: 20px; right: 16px; z-index: 3;
+      width: 110px; height: 150px;
+      object-fit: cover; border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: var(--gray-800);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      transform: scaleX(-1); /* espejo de cámara frontal */
+    }
+
+    .call-topbar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+      padding: 24px 20px 40px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+      text-align: center;
+    }
+    .call-title { font-size: 18px; font-weight: 800; }
+    .call-status {
+      margin-top: 6px; font-size: 13px; color: var(--gray-400);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .call-status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success); display: inline-block;
+    }
+    .call-status.calling .dot { background: #FFCC00; animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+
+    .call-center {
+      position: absolute; inset: 0; z-index: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      text-align: center; padding: 24px;
+    }
+    .call-center .spinner { margin: 0 auto; }
+    .call-center-text { color: var(--gray-400); font-size: 15px; }
+
+    .call-controls {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 3;
+      padding: 24px 24px 40px;
+      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+      display: flex; align-items: center; justify-content: center; gap: 28px;
+    }
+    .call-ctrl {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      background: none; border: none; color: var(--white);
+      font-size: 11px; font-family: var(--font); cursor: pointer;
+    }
+    .call-ctrl-icon {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; transition: background 0.2s, transform 0.1s;
+    }
+    .call-ctrl:active .call-ctrl-icon { transform: scale(0.92); }
+    .call-ctrl.off .call-ctrl-icon { background: rgba(255,255,255,0.4); }
+    .call-ctrl.hangup .call-ctrl-icon { background: var(--error); width: 68px; height: 68px; }
+  </style>
+</head>
+<body>
+  <div class="glow-top"></div>
+  <div class="glow-bottom"></div>
+  <div id="app">
+    <div class="page-content">
+      <div id="loading-state" class="loading-state">
+        <div class="spinner" style="margin: 0 auto;"></div>
+        <p class="loading-title">Cargando timbre...</p>
+        <p class="loading-title" id="watchdog-msg" style="display:none; font-size:14px; color:#8E8E93; margin-top:16px;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Pantalla de videollamada ─── -->
+  <div class="call-overlay" id="call-overlay">
+    <video class="call-remote" id="remote-video" autoplay playsinline></video>
+    <video class="call-local" id="local-video" autoplay playsinline muted></video>
+
+    <div class="call-topbar">
+      <div class="call-title">Videollamada</div>
+      <div class="call-status calling" id="call-status">
+        <span class="dot"></span><span id="call-status-text">Llamando…</span>
+      </div>
+    </div>
+
+    <div class="call-center" id="call-center">
+      <div class="spinner"></div>
+      <p class="call-center-text" id="call-center-text">Esperando que atiendan…</p>
+    </div>
+
+    <div class="call-controls">
+      <button class="call-ctrl" id="ctrl-mic" onclick="toggleMic()">
+        <span class="call-ctrl-icon">🎤</span><span>Silenciar</span>
+      </button>
+      <button class="call-ctrl hangup" onclick="hangupCall()">
+        <span class="call-ctrl-icon">📵</span><span>Finalizar</span>
+      </button>
+      <button class="call-ctrl" id="ctrl-cam" onclick="switchCamera()">
+        <span class="call-ctrl-icon">🔄</span><span>Cámara</span>
+      </button>
+    </div>
+  </div>
+
+  <!--
+    VIGÍA. Bloque separado y en ES5 estricto: si el bloque principal de JS no
+    parsea (un token que este navegador no entiende tumba el archivo entero, sin
+    error visible), la página se quedaría en "Cargando timbre..." para siempre.
+    Esto detecta ese caso y al menos le dice al visitante qué pasa.
+    NO usar sintaxis moderna acá adentro. Es la última línea de defensa.
+  -->
+  <script>
+    (function () {
+      var t = setTimeout(function () {
+        var loading = document.getElementById('loading-state');
+        if (!loading || loading.style.display === 'none') return; // ya cargó
+        var msg = document.getElementById('watchdog-msg');
+        if (msg) {
+          msg.style.display = 'block';
+          msg.innerHTML = 'Esto está tardando más de lo normal.<br>' +
+            'Probá recargar la página. Si sigue igual, avisale al dueño de casa ' +
+            'que su timbre no está funcionando.';
+        }
+      }, 12000);
+      window.__cancelWatchdog = function () { clearTimeout(t); };
+    })();
+  </script>
+
+  <script>
+    // NOTA: el vigía de arriba va en su propio bloque y en sintaxis vieja a
+    // propósito — si este bloque no parsea, aquel sigue vivo y avisa.
+
+    // ⚠ Esta página la abre el teléfono de CUALQUIER visitante, incluidos
+    // equipos viejos que nunca se actualizaron. Un solo token que Safari no
+    // entienda tumba el archivo ENTERO al parsearlo: no corre nada, no salta
+    // ningún error y la página queda clavada en "Cargando timbre...".
+    // Por eso acá NO se usa optional chaining (?.) ni nullish (??), que exigen
+    // iOS 13.4+. Mantener este archivo compatible con iOS 12.
+    const API_BASE = ''; // Served from same domain
+    const qrId = window.location.pathname.split('/').filter(Boolean).pop();
+
+    // Lee el nombre que escribió el visitante, tolerando que el input no exista.
+    function leerNombreVisitante() {
+      const el = document.getElementById('visitor-name');
+      return el && el.value ? el.value.trim() : '';
+    }
+
+    let casa = null;
+    let ringing = false;
+
+    // ─── Fetch visitor info (con timeout) ─────────────────────────────────────
+    async function loadCasa() {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        const res = await fetch(`${API_BASE}/api/visitor/${qrId}`, { signal: ctrl.signal });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'QR no válido');
+        casa = data.casa;
+        render();
+      } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError' || err.message === 'Failed to fetch') {
+          renderError('No se pudo conectar con el timbre. Verificá tu conexión a internet e intentá de nuevo.', true);
+        } else {
+          renderError(err.message);
+        }
+      }
+    }
+
+    // ─── Ring doorbell ────────────────────────────────────────────────────────
+    async function ringDoorbell() {
+      if (ringing) return;
+      ringing = true;
+
+      const btn = document.getElementById('ring-btn');
+      const hint = document.getElementById('ring-hint');
+      const statusMsg = document.getElementById('status-msg');
+      const visitorName = leerNombreVisitante();
+
+      btn.classList.add('ringing');
+      btn.innerHTML = `<div class="spinner"></div>`;
+      hint.textContent = 'Enviando timbrazo...';
+      statusMsg.classList.remove('show', 'success', 'error');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/visitor/${qrId}/ring`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorName }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Error enviando timbrazo');
+
+        btn.classList.remove('ringing');
+        btn.classList.add('success');
+        btn.innerHTML = `<span class="ring-btn-emoji ring-anim">✅</span><span class="ring-btn-text">Enviado!</span>`;
+        hint.textContent = '¡Timbre enviado! El dueño fue notificado.';
+
+        statusMsg.textContent = '🔔 El timbre fue tocado correctamente.';
+        statusMsg.classList.add('show', 'success');
+
+        // Reset after 5 seconds
+        setTimeout(() => {
+          btn.classList.remove('success');
+          btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
+          hint.textContent = '¿Necesitas tocar nuevamente?';
+          statusMsg.classList.remove('show', 'success');
+          ringing = false;
+        }, 5000);
+
+      } catch (err) {
+        btn.classList.remove('ringing');
+        btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
+        hint.textContent = 'Intenta nuevamente';
+        statusMsg.textContent = '⚠️ ' + (err.message || 'No se pudo enviar el timbrazo.');
+        statusMsg.classList.add('show', 'error');
+
+        setTimeout(() => { statusMsg.classList.remove('show', 'error'); }, 5000);
+        ringing = false;
+      }
+    }
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      if (window.__cancelWatchdog) window.__cancelWatchdog();
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="brand">
+            <span class="brand-icon">🔔</span>
+            <span class="brand-name">S-Doorbell</span>
+          </div>
+
+          <div class="house-card">
+            ${casa.foto_fachada
+              ? `<img src="${casa.foto_fachada}" alt="Fachada" class="house-photo" />`
+              : `<div class="house-photo-placeholder">
+                  <span class="house-photo-placeholder-icon">🏠</span>
+                  <span class="house-photo-placeholder-text">Casa de ${casa.nombreCompleto}</span>
+                </div>`
+            }
+            <div class="house-info">
+              <div class="house-owner">${escapeHtml(casa.nombreCompleto)}</div>
+              ${casa.direccion ? `<div class="house-address">📍 ${escapeHtml(casa.direccion)}</div>` : ''}
+            </div>
+          </div>
+
+          <div class="name-section">
+            <label class="name-label" for="visitor-name">Tu nombre (opcional)</label>
+            <input
+              type="text" id="visitor-name"
+              class="name-input"
+              placeholder="¿Cómo te llamas?"
+              maxlength="60"
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="ring-section">
+            <div class="ring-btn-wrapper">
+              <div class="ring-btn-glow"></div>
+              <button class="ring-btn" id="ring-btn" onclick="ringDoorbell()" aria-label="Tocar timbre">
+                <span class="ring-btn-emoji">🔔</span>
+                <span class="ring-btn-text">Tocar Timbre</span>
+              </button>
+            </div>
+            <p class="ring-hint" id="ring-hint">Toca el botón para avisar que estás en la puerta</p>
+          </div>
+
+          <button class="video-btn" id="video-btn" onclick="startVideoCall()">
+            <span class="video-btn-icon">📹</span>
+            <span>Iniciar videollamada</span>
+          </button>
+
+          <div class="status-msg" id="status-msg"></div>
+
+          <p class="footer">
+            Powered by <a href="#">S-Doorbell</a> · Timbre digital inteligente
+          </p>
+        </div>
+      `;
+
+      // Hover glow effect for desktop
+      const btn = document.getElementById('ring-btn');
+      const glow = btn && btn.previousElementSibling;
+      if (btn && glow) {
+        btn.addEventListener('mouseenter', () => glow.style.opacity = '1');
+        btn.addEventListener('mouseleave', () => glow.style.opacity = '0');
+      }
+    }
+
+    function renderError(msg, retry) {
+      if (window.__cancelWatchdog) window.__cancelWatchdog();
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="error-page">
+            <div class="error-icon">${retry ? '📶' : '🚫'}</div>
+            <div class="error-title">${retry ? 'Sin conexión' : 'QR no válido'}</div>
+            <div class="error-text">${escapeHtml(msg || 'Este timbre digital no existe o fue desactivado.')}</div>
+            ${retry ? `<button class="ring-btn" style="width:auto;height:auto;border-radius:14px;padding:14px 28px;margin-top:20px;" onclick="location.reload()">Reintentar</button>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ═══ VIDEOLLAMADA (WebRTC) ═════════════════════════════════════════════════
+    let pc = null;            // RTCPeerConnection
+    let localStream = null;
+    let callId = null;
+    let pollTimer = null;
+    let pollCursor = 0;
+    let callActive = false;
+    let usingFront = true;    // cámara frontal por defecto
+    let durTimer = null;
+
+    const callOverlay = () => document.getElementById('call-overlay');
+
+    function setCallStatus(text, connected) {
+      const wrap = document.getElementById('call-status');
+      const txt = document.getElementById('call-status-text');
+      if (txt) txt.textContent = text;
+      if (wrap) wrap.classList.toggle('calling', !connected);
+    }
+
+    function showCallCenter(text) {
+      const c = document.getElementById('call-center');
+      const t = document.getElementById('call-center-text');
+      if (t && text) t.textContent = text;
+      if (c) c.style.display = text ? 'flex' : 'none';
+    }
+
+    async function startVideoCall() {
+      if (callActive) return;
+      const visitorName = leerNombreVisitante();
+
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: usingFront ? 'user' : 'environment' },
+          audio: true,
+        });
+      } catch (err) {
+        alert('Necesitamos permiso de cámara y micrófono para la videollamada.');
+        return;
+      }
+
+      callActive = true;
+      callOverlay().classList.add('show');
+      document.getElementById('local-video').srcObject = localStream;
+      setCallStatus('Llamando…', false);
+      showCallCenter('Esperando que atiendan…');
+
+      try {
+        // 1) Crear la sesión y notificar a los residentes.
+        const startRes = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorName }),
+        });
+        const startData = await startRes.json();
+        if (!startRes.ok || !startData.success) throw new Error(startData.error || 'No se pudo iniciar la llamada');
+        callId = startData.callId;
+
+        // 2) Crear el peer y la oferta.
+        pc = new RTCPeerConnection({ iceServers: startData.iceServers || [] });
+        localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+        pc.ontrack = (e) => {
+          document.getElementById('remote-video').srcObject = e.streams[0];
+          showCallCenter('');
+          setCallStatus('Conectado', true);
+          startDuration();
+        };
+        pc.onicecandidate = (e) => {
+          if (e.candidate) sendSignal('ice', e.candidate.toJSON());
+        };
+        pc.onconnectionstatechange = () => {
+          if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && callActive) {
+            endCall('Llamada finalizada');
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
+
+        // 3) Empezar a recibir señales del residente.
+        startPolling();
+      } catch (err) {
+        endCall(err.message || 'No se pudo iniciar la llamada');
+      }
+    }
+
+    async function sendSignal(tipo, payload) {
+      if (!callId) return;
+      try {
+        await fetch(`${API_BASE}/api/calls/${callId}/visitor/signal`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo, payload }),
+        });
+      } catch (e) { /* reintenta en el próximo ICE/poll */ }
+    }
+
+    function startPolling() {
+      const poll = async () => {
+        if (!callActive || !callId) return;
+        try {
+          const res = await fetch(`${API_BASE}/api/calls/${callId}/visitor/poll?after=${pollCursor}`);
+          const data = await res.json();
+          if (!data.success) return;
+
+          if (['ended', 'rejected', 'timeout'].includes(data.estado)) {
+            endCall(data.estado === 'rejected' ? 'Llamada rechazada' : 'Llamada finalizada');
+            return;
+          }
+          if (data.estado === 'accepted') setCallStatus('Conectando…', false);
+
+          pollCursor = data.cursor || pollCursor;
+          for (const sig of data.signals || []) {
+            await handleRemoteSignal(sig);
+          }
+        } catch (e) { /* sin red: reintenta */ }
+      };
+      poll();
+      pollTimer = setInterval(poll, 1200);
+    }
+
+    async function handleRemoteSignal(sig) {
+      if (!pc) return;
+      try {
+        if (sig.tipo === 'answer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
+        } else if (sig.tipo === 'ice') {
+          await pc.addIceCandidate(new RTCIceCandidate(sig.payload));
+        }
+      } catch (e) { /* ignorar candidatos fuera de orden */ }
+    }
+
+    function toggleMic() {
+      if (!localStream) return;
+      const track = localStream.getAudioTracks()[0];
+      if (!track) return;
+      track.enabled = !track.enabled;
+      document.getElementById('ctrl-mic').classList.toggle('off', !track.enabled);
+    }
+
+    async function switchCamera() {
+      if (!localStream || !pc) return;
+      usingFront = !usingFront;
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: usingFront ? 'user' : 'environment' }, audio: true,
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+        if (sender && newTrack) await sender.replaceTrack(newTrack);
+        // Reemplazar el track de video en el stream local mostrado.
+        localStream.getVideoTracks().forEach((t) => { t.stop(); localStream.removeTrack(t); });
+        localStream.addTrack(newTrack);
+        document.getElementById('local-video').srcObject = localStream;
+      } catch (e) { usingFront = !usingFront; }
+    }
+
+    function startDuration() {
+      if (durTimer) return;
+      const t0 = Date.now();
+      durTimer = setInterval(() => {
+        const s = Math.floor((Date.now() - t0) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        setCallStatus(`Conectado · ${mm}:${ss}`, true);
+      }, 1000);
+    }
+
+    async function hangupCall() {
+      if (callId) {
+        try {
+          await fetch(`${API_BASE}/api/calls/${callId}/visitor/hangup`, { method: 'POST' });
+        } catch (e) {}
+      }
+      endCall('Llamada finalizada');
+    }
+
+    function endCall(msg) {
+      callActive = false;
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      if (durTimer) { clearInterval(durTimer); durTimer = null; }
+      if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+      if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+      callId = null; pollCursor = 0;
+      callOverlay().classList.remove('show');
+      const rv = document.getElementById('remote-video');
+      if (rv) rv.srcObject = null;
+      showCallCenter('Esperando que atiendan…');
+      setCallStatus('Llamando…', false);
+    }
+
+    // ─── Init ─────────────────────────────────────────────────────────────────
+    if (!qrId || qrId === 'visit') {
+      renderError('URL inválida. Escanea el QR del timbre correctamente.');
+    } else {
+      loadCasa();
+    }
+  </script>
+</body>
+</html>

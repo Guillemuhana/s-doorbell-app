@@ -1,0 +1,13 @@
+{
+  "name": "sdoorbell-visitor-build",
+  "private": true,
+  "description": "Transpila la página del visitante a ES5 para máxima compatibilidad.",
+  "scripts": {
+    "build": "node build-visitor.js"
+  },
+  "dependencies": {
+    "@babel/core": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
+    "regenerator-runtime": "^0.14.1"
+  }
+}

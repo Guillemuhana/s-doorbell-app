@@ -393,391 +393,1381 @@
   </script>
 
   <script>
-    // NOTA: el vigía de arriba va en su propio bloque y en sintaxis vieja a
-    // propósito — si este bloque no parsea, aquel sigue vivo y avisa.
+/* regenerator-runtime (async/await en Safari viejo) */
+/**
+ * Copyright (c) 2014-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
-    // ⚠ Esta página la abre el teléfono de CUALQUIER visitante, incluidos
-    // equipos viejos que nunca se actualizaron. Un solo token que Safari no
-    // entienda tumba el archivo ENTERO al parsearlo: no corre nada, no salta
-    // ningún error y la página queda clavada en "Cargando timbre...".
-    // Por eso acá NO se usa optional chaining (?.) ni nullish (??), que exigen
-    // iOS 13.4+. Mantener este archivo compatible con iOS 12.
-    const API_BASE = ''; // Served from same domain
-    const qrId = window.location.pathname.split('/').filter(Boolean).pop();
+var runtime = (function (exports) {
+  "use strict";
 
-    // Lee el nombre que escribió el visitante, tolerando que el input no exista.
-    function leerNombreVisitante() {
-      const el = document.getElementById('visitor-name');
-      return el && el.value ? el.value.trim() : '';
+  var Op = Object.prototype;
+  var hasOwn = Op.hasOwnProperty;
+  var defineProperty = Object.defineProperty || function (obj, key, desc) { obj[key] = desc.value; };
+  var undefined; // More compressible than void 0.
+  var $Symbol = typeof Symbol === "function" ? Symbol : {};
+  var iteratorSymbol = $Symbol.iterator || "@@iterator";
+  var asyncIteratorSymbol = $Symbol.asyncIterator || "@@asyncIterator";
+  var toStringTagSymbol = $Symbol.toStringTag || "@@toStringTag";
+
+  function define(obj, key, value) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+    return obj[key];
+  }
+  try {
+    // IE 8 has a broken Object.defineProperty that only works on DOM objects.
+    define({}, "");
+  } catch (err) {
+    define = function(obj, key, value) {
+      return obj[key] = value;
+    };
+  }
+
+  function wrap(innerFn, outerFn, self, tryLocsList) {
+    // If outerFn provided and outerFn.prototype is a Generator, then outerFn.prototype instanceof Generator.
+    var protoGenerator = outerFn && outerFn.prototype instanceof Generator ? outerFn : Generator;
+    var generator = Object.create(protoGenerator.prototype);
+    var context = new Context(tryLocsList || []);
+
+    // The ._invoke method unifies the implementations of the .next,
+    // .throw, and .return methods.
+    defineProperty(generator, "_invoke", { value: makeInvokeMethod(innerFn, self, context) });
+
+    return generator;
+  }
+  exports.wrap = wrap;
+
+  // Try/catch helper to minimize deoptimizations. Returns a completion
+  // record like context.tryEntries[i].completion. This interface could
+  // have been (and was previously) designed to take a closure to be
+  // invoked without arguments, but in all the cases we care about we
+  // already have an existing method we want to call, so there's no need
+  // to create a new function object. We can even get away with assuming
+  // the method takes exactly one argument, since that happens to be true
+  // in every case, so we don't have to touch the arguments object. The
+  // only additional allocation required is the completion record, which
+  // has a stable shape and so hopefully should be cheap to allocate.
+  function tryCatch(fn, obj, arg) {
+    try {
+      return { type: "normal", arg: fn.call(obj, arg) };
+    } catch (err) {
+      return { type: "throw", arg: err };
     }
+  }
 
-    let casa = null;
-    let ringing = false;
+  var GenStateSuspendedStart = "suspendedStart";
+  var GenStateSuspendedYield = "suspendedYield";
+  var GenStateExecuting = "executing";
+  var GenStateCompleted = "completed";
 
-    // ─── Fetch visitor info (con timeout) ─────────────────────────────────────
-    async function loadCasa() {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8000);
-      try {
-        const res = await fetch(`${API_BASE}/api/visitor/${qrId}`, { signal: ctrl.signal });
-        clearTimeout(timer);
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || 'QR no válido');
-        casa = data.casa;
-        render();
-      } catch (err) {
-        clearTimeout(timer);
-        if (err.name === 'AbortError' || err.message === 'Failed to fetch') {
-          renderError('No se pudo conectar con el timbre. Verificá tu conexión a internet e intentá de nuevo.', true);
-        } else {
-          renderError(err.message);
-        }
-      }
-    }
+  // Returning this object from the innerFn has the same effect as
+  // breaking out of the dispatch switch statement.
+  var ContinueSentinel = {};
 
-    // ─── Ring doorbell ────────────────────────────────────────────────────────
-    async function ringDoorbell() {
-      if (ringing) return;
-      ringing = true;
+  // Dummy constructor functions that we use as the .constructor and
+  // .constructor.prototype properties for functions that return Generator
+  // objects. For full spec compliance, you may wish to configure your
+  // minifier not to mangle the names of these two functions.
+  function Generator() {}
+  function GeneratorFunction() {}
+  function GeneratorFunctionPrototype() {}
 
-      const btn = document.getElementById('ring-btn');
-      const hint = document.getElementById('ring-hint');
-      const statusMsg = document.getElementById('status-msg');
-      const visitorName = leerNombreVisitante();
+  // This is a polyfill for %IteratorPrototype% for environments that
+  // don't natively support it.
+  var IteratorPrototype = {};
+  define(IteratorPrototype, iteratorSymbol, function () {
+    return this;
+  });
 
-      btn.classList.add('ringing');
-      btn.innerHTML = `<div class="spinner"></div>`;
-      hint.textContent = 'Enviando timbrazo...';
-      statusMsg.classList.remove('show', 'success', 'error');
+  var getProto = Object.getPrototypeOf;
+  var NativeIteratorPrototype = getProto && getProto(getProto(values([])));
+  if (NativeIteratorPrototype &&
+      NativeIteratorPrototype !== Op &&
+      hasOwn.call(NativeIteratorPrototype, iteratorSymbol)) {
+    // This environment has a native %IteratorPrototype%; use it instead
+    // of the polyfill.
+    IteratorPrototype = NativeIteratorPrototype;
+  }
 
-      try {
-        const res = await fetch(`${API_BASE}/api/visitor/${qrId}/ring`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorName }),
-        });
-        const data = await res.json();
+  var Gp = GeneratorFunctionPrototype.prototype =
+    Generator.prototype = Object.create(IteratorPrototype);
+  GeneratorFunction.prototype = GeneratorFunctionPrototype;
+  defineProperty(Gp, "constructor", { value: GeneratorFunctionPrototype, configurable: true });
+  defineProperty(
+    GeneratorFunctionPrototype,
+    "constructor",
+    { value: GeneratorFunction, configurable: true }
+  );
+  GeneratorFunction.displayName = define(
+    GeneratorFunctionPrototype,
+    toStringTagSymbol,
+    "GeneratorFunction"
+  );
 
-        if (!res.ok) throw new Error(data.error || 'Error enviando timbrazo');
+  // Helper for defining the .next, .throw, and .return methods of the
+  // Iterator interface in terms of a single ._invoke method.
+  function defineIteratorMethods(prototype) {
+    ["next", "throw", "return"].forEach(function(method) {
+      define(prototype, method, function(arg) {
+        return this._invoke(method, arg);
+      });
+    });
+  }
 
-        btn.classList.remove('ringing');
-        btn.classList.add('success');
-        btn.innerHTML = `<span class="ring-btn-emoji ring-anim">✅</span><span class="ring-btn-text">Enviado!</span>`;
-        hint.textContent = '¡Timbre enviado! El dueño fue notificado.';
+  exports.isGeneratorFunction = function(genFun) {
+    var ctor = typeof genFun === "function" && genFun.constructor;
+    return ctor
+      ? ctor === GeneratorFunction ||
+        // For the native GeneratorFunction constructor, the best we can
+        // do is to check its .name property.
+        (ctor.displayName || ctor.name) === "GeneratorFunction"
+      : false;
+  };
 
-        statusMsg.textContent = '🔔 El timbre fue tocado correctamente.';
-        statusMsg.classList.add('show', 'success');
-
-        // Reset after 5 seconds
-        setTimeout(() => {
-          btn.classList.remove('success');
-          btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
-          hint.textContent = '¿Necesitas tocar nuevamente?';
-          statusMsg.classList.remove('show', 'success');
-          ringing = false;
-        }, 5000);
-
-      } catch (err) {
-        btn.classList.remove('ringing');
-        btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
-        hint.textContent = 'Intenta nuevamente';
-        statusMsg.textContent = '⚠️ ' + (err.message || 'No se pudo enviar el timbrazo.');
-        statusMsg.classList.add('show', 'error');
-
-        setTimeout(() => { statusMsg.classList.remove('show', 'error'); }, 5000);
-        ringing = false;
-      }
-    }
-
-    // ─── Render ───────────────────────────────────────────────────────────────
-    function render() {
-      if (window.__cancelWatchdog) window.__cancelWatchdog();
-      const app = document.getElementById('app');
-      app.innerHTML = `
-        <div class="page-content">
-          <div class="brand">
-            <span class="brand-icon">🔔</span>
-            <span class="brand-name">S-Doorbell</span>
-          </div>
-
-          <div class="house-card">
-            ${casa.foto_fachada
-              ? `<img src="${casa.foto_fachada}" alt="Fachada" class="house-photo" />`
-              : `<div class="house-photo-placeholder">
-                  <span class="house-photo-placeholder-icon">🏠</span>
-                  <span class="house-photo-placeholder-text">Casa de ${casa.nombreCompleto}</span>
-                </div>`
-            }
-            <div class="house-info">
-              <div class="house-owner">${escapeHtml(casa.nombreCompleto)}</div>
-              ${casa.direccion ? `<div class="house-address">📍 ${escapeHtml(casa.direccion)}</div>` : ''}
-            </div>
-          </div>
-
-          <div class="name-section">
-            <label class="name-label" for="visitor-name">Tu nombre (opcional)</label>
-            <input
-              type="text" id="visitor-name"
-              class="name-input"
-              placeholder="¿Cómo te llamas?"
-              maxlength="60"
-              autocomplete="name"
-            />
-          </div>
-
-          <div class="ring-section">
-            <div class="ring-btn-wrapper">
-              <div class="ring-btn-glow"></div>
-              <button class="ring-btn" id="ring-btn" onclick="ringDoorbell()" aria-label="Tocar timbre">
-                <span class="ring-btn-emoji">🔔</span>
-                <span class="ring-btn-text">Tocar Timbre</span>
-              </button>
-            </div>
-            <p class="ring-hint" id="ring-hint">Toca el botón para avisar que estás en la puerta</p>
-          </div>
-
-          <button class="video-btn" id="video-btn" onclick="startVideoCall()">
-            <span class="video-btn-icon">📹</span>
-            <span>Iniciar videollamada</span>
-          </button>
-
-          <div class="status-msg" id="status-msg"></div>
-
-          <p class="footer">
-            Powered by <a href="#">S-Doorbell</a> · Timbre digital inteligente
-          </p>
-        </div>
-      `;
-
-      // Hover glow effect for desktop
-      const btn = document.getElementById('ring-btn');
-      const glow = btn && btn.previousElementSibling;
-      if (btn && glow) {
-        btn.addEventListener('mouseenter', () => glow.style.opacity = '1');
-        btn.addEventListener('mouseleave', () => glow.style.opacity = '0');
-      }
-    }
-
-    function renderError(msg, retry) {
-      if (window.__cancelWatchdog) window.__cancelWatchdog();
-      const app = document.getElementById('app');
-      app.innerHTML = `
-        <div class="page-content">
-          <div class="error-page">
-            <div class="error-icon">${retry ? '📶' : '🚫'}</div>
-            <div class="error-title">${retry ? 'Sin conexión' : 'QR no válido'}</div>
-            <div class="error-text">${escapeHtml(msg || 'Este timbre digital no existe o fue desactivado.')}</div>
-            ${retry ? `<button class="ring-btn" style="width:auto;height:auto;border-radius:14px;padding:14px 28px;margin-top:20px;" onclick="location.reload()">Reintentar</button>` : ''}
-          </div>
-        </div>
-      `;
-    }
-
-    function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-
-    // ═══ VIDEOLLAMADA (WebRTC) ═════════════════════════════════════════════════
-    let pc = null;            // RTCPeerConnection
-    let localStream = null;
-    let callId = null;
-    let pollTimer = null;
-    let pollCursor = 0;
-    let callActive = false;
-    let usingFront = true;    // cámara frontal por defecto
-    let durTimer = null;
-
-    const callOverlay = () => document.getElementById('call-overlay');
-
-    function setCallStatus(text, connected) {
-      const wrap = document.getElementById('call-status');
-      const txt = document.getElementById('call-status-text');
-      if (txt) txt.textContent = text;
-      if (wrap) wrap.classList.toggle('calling', !connected);
-    }
-
-    function showCallCenter(text) {
-      const c = document.getElementById('call-center');
-      const t = document.getElementById('call-center-text');
-      if (t && text) t.textContent = text;
-      if (c) c.style.display = text ? 'flex' : 'none';
-    }
-
-    async function startVideoCall() {
-      if (callActive) return;
-      const visitorName = leerNombreVisitante();
-
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: usingFront ? 'user' : 'environment' },
-          audio: true,
-        });
-      } catch (err) {
-        alert('Necesitamos permiso de cámara y micrófono para la videollamada.');
-        return;
-      }
-
-      callActive = true;
-      callOverlay().classList.add('show');
-      document.getElementById('local-video').srcObject = localStream;
-      setCallStatus('Llamando…', false);
-      showCallCenter('Esperando que atiendan…');
-
-      try {
-        // 1) Crear la sesión y notificar a los residentes.
-        const startRes = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorName }),
-        });
-        const startData = await startRes.json();
-        if (!startRes.ok || !startData.success) throw new Error(startData.error || 'No se pudo iniciar la llamada');
-        callId = startData.callId;
-
-        // 2) Crear el peer y la oferta.
-        pc = new RTCPeerConnection({ iceServers: startData.iceServers || [] });
-        localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
-
-        pc.ontrack = (e) => {
-          document.getElementById('remote-video').srcObject = e.streams[0];
-          showCallCenter('');
-          setCallStatus('Conectado', true);
-          startDuration();
-        };
-        pc.onicecandidate = (e) => {
-          if (e.candidate) sendSignal('ice', e.candidate.toJSON());
-        };
-        pc.onconnectionstatechange = () => {
-          if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && callActive) {
-            endCall('Llamada finalizada');
-          }
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendSignal('offer', { type: offer.type, sdp: offer.sdp });
-
-        // 3) Empezar a recibir señales del residente.
-        startPolling();
-      } catch (err) {
-        endCall(err.message || 'No se pudo iniciar la llamada');
-      }
-    }
-
-    async function sendSignal(tipo, payload) {
-      if (!callId) return;
-      try {
-        await fetch(`${API_BASE}/api/calls/${callId}/visitor/signal`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tipo, payload }),
-        });
-      } catch (e) { /* reintenta en el próximo ICE/poll */ }
-    }
-
-    function startPolling() {
-      const poll = async () => {
-        if (!callActive || !callId) return;
-        try {
-          const res = await fetch(`${API_BASE}/api/calls/${callId}/visitor/poll?after=${pollCursor}`);
-          const data = await res.json();
-          if (!data.success) return;
-
-          if (['ended', 'rejected', 'timeout'].includes(data.estado)) {
-            endCall(data.estado === 'rejected' ? 'Llamada rechazada' : 'Llamada finalizada');
-            return;
-          }
-          if (data.estado === 'accepted') setCallStatus('Conectando…', false);
-
-          pollCursor = data.cursor || pollCursor;
-          for (const sig of data.signals || []) {
-            await handleRemoteSignal(sig);
-          }
-        } catch (e) { /* sin red: reintenta */ }
-      };
-      poll();
-      pollTimer = setInterval(poll, 1200);
-    }
-
-    async function handleRemoteSignal(sig) {
-      if (!pc) return;
-      try {
-        if (sig.tipo === 'answer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
-        } else if (sig.tipo === 'ice') {
-          await pc.addIceCandidate(new RTCIceCandidate(sig.payload));
-        }
-      } catch (e) { /* ignorar candidatos fuera de orden */ }
-    }
-
-    function toggleMic() {
-      if (!localStream) return;
-      const track = localStream.getAudioTracks()[0];
-      if (!track) return;
-      track.enabled = !track.enabled;
-      document.getElementById('ctrl-mic').classList.toggle('off', !track.enabled);
-    }
-
-    async function switchCamera() {
-      if (!localStream || !pc) return;
-      usingFront = !usingFront;
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: usingFront ? 'user' : 'environment' }, audio: true,
-        });
-        const newTrack = newStream.getVideoTracks()[0];
-        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
-        if (sender && newTrack) await sender.replaceTrack(newTrack);
-        // Reemplazar el track de video en el stream local mostrado.
-        localStream.getVideoTracks().forEach((t) => { t.stop(); localStream.removeTrack(t); });
-        localStream.addTrack(newTrack);
-        document.getElementById('local-video').srcObject = localStream;
-      } catch (e) { usingFront = !usingFront; }
-    }
-
-    function startDuration() {
-      if (durTimer) return;
-      const t0 = Date.now();
-      durTimer = setInterval(() => {
-        const s = Math.floor((Date.now() - t0) / 1000);
-        const mm = String(Math.floor(s / 60)).padStart(2, '0');
-        const ss = String(s % 60).padStart(2, '0');
-        setCallStatus(`Conectado · ${mm}:${ss}`, true);
-      }, 1000);
-    }
-
-    async function hangupCall() {
-      if (callId) {
-        try {
-          await fetch(`${API_BASE}/api/calls/${callId}/visitor/hangup`, { method: 'POST' });
-        } catch (e) {}
-      }
-      endCall('Llamada finalizada');
-    }
-
-    function endCall(msg) {
-      callActive = false;
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-      if (durTimer) { clearInterval(durTimer); durTimer = null; }
-      if (pc) { try { pc.close(); } catch (e) {} pc = null; }
-      if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
-      callId = null; pollCursor = 0;
-      callOverlay().classList.remove('show');
-      const rv = document.getElementById('remote-video');
-      if (rv) rv.srcObject = null;
-      showCallCenter('Esperando que atiendan…');
-      setCallStatus('Llamando…', false);
-    }
-
-    // ─── Init ─────────────────────────────────────────────────────────────────
-    if (!qrId || qrId === 'visit') {
-      renderError('URL inválida. Escanea el QR del timbre correctamente.');
+  exports.mark = function(genFun) {
+    if (Object.setPrototypeOf) {
+      Object.setPrototypeOf(genFun, GeneratorFunctionPrototype);
     } else {
-      loadCasa();
+      genFun.__proto__ = GeneratorFunctionPrototype;
+      define(genFun, toStringTagSymbol, "GeneratorFunction");
     }
-  </script>
+    genFun.prototype = Object.create(Gp);
+    return genFun;
+  };
+
+  // Within the body of any async function, `await x` is transformed to
+  // `yield regeneratorRuntime.awrap(x)`, so that the runtime can test
+  // `hasOwn.call(value, "__await")` to determine if the yielded value is
+  // meant to be awaited.
+  exports.awrap = function(arg) {
+    return { __await: arg };
+  };
+
+  function AsyncIterator(generator, PromiseImpl) {
+    function invoke(method, arg, resolve, reject) {
+      var record = tryCatch(generator[method], generator, arg);
+      if (record.type === "throw") {
+        reject(record.arg);
+      } else {
+        var result = record.arg;
+        var value = result.value;
+        if (value &&
+            typeof value === "object" &&
+            hasOwn.call(value, "__await")) {
+          return PromiseImpl.resolve(value.__await).then(function(value) {
+            invoke("next", value, resolve, reject);
+          }, function(err) {
+            invoke("throw", err, resolve, reject);
+          });
+        }
+
+        return PromiseImpl.resolve(value).then(function(unwrapped) {
+          // When a yielded Promise is resolved, its final value becomes
+          // the .value of the Promise<{value,done}> result for the
+          // current iteration.
+          result.value = unwrapped;
+          resolve(result);
+        }, function(error) {
+          // If a rejected Promise was yielded, throw the rejection back
+          // into the async generator function so it can be handled there.
+          return invoke("throw", error, resolve, reject);
+        });
+      }
+    }
+
+    var previousPromise;
+
+    function enqueue(method, arg) {
+      function callInvokeWithMethodAndArg() {
+        return new PromiseImpl(function(resolve, reject) {
+          invoke(method, arg, resolve, reject);
+        });
+      }
+
+      return previousPromise =
+        // If enqueue has been called before, then we want to wait until
+        // all previous Promises have been resolved before calling invoke,
+        // so that results are always delivered in the correct order. If
+        // enqueue has not been called before, then it is important to
+        // call invoke immediately, without waiting on a callback to fire,
+        // so that the async generator function has the opportunity to do
+        // any necessary setup in a predictable way. This predictability
+        // is why the Promise constructor synchronously invokes its
+        // executor callback, and why async functions synchronously
+        // execute code before the first await. Since we implement simple
+        // async functions in terms of async generators, it is especially
+        // important to get this right, even though it requires care.
+        previousPromise ? previousPromise.then(
+          callInvokeWithMethodAndArg,
+          // Avoid propagating failures to Promises returned by later
+          // invocations of the iterator.
+          callInvokeWithMethodAndArg
+        ) : callInvokeWithMethodAndArg();
+    }
+
+    // Define the unified helper method that is used to implement .next,
+    // .throw, and .return (see defineIteratorMethods).
+    defineProperty(this, "_invoke", { value: enqueue });
+  }
+
+  defineIteratorMethods(AsyncIterator.prototype);
+  define(AsyncIterator.prototype, asyncIteratorSymbol, function () {
+    return this;
+  });
+  exports.AsyncIterator = AsyncIterator;
+
+  // Note that simple async functions are implemented on top of
+  // AsyncIterator objects; they just return a Promise for the value of
+  // the final result produced by the iterator.
+  exports.async = function(innerFn, outerFn, self, tryLocsList, PromiseImpl) {
+    if (PromiseImpl === void 0) PromiseImpl = Promise;
+
+    var iter = new AsyncIterator(
+      wrap(innerFn, outerFn, self, tryLocsList),
+      PromiseImpl
+    );
+
+    return exports.isGeneratorFunction(outerFn)
+      ? iter // If outerFn is a generator, return the full iterator.
+      : iter.next().then(function(result) {
+          return result.done ? result.value : iter.next();
+        });
+  };
+
+  function makeInvokeMethod(innerFn, self, context) {
+    var state = GenStateSuspendedStart;
+
+    return function invoke(method, arg) {
+      if (state === GenStateExecuting) {
+        throw new Error("Generator is already running");
+      }
+
+      if (state === GenStateCompleted) {
+        if (method === "throw") {
+          throw arg;
+        }
+
+        // Be forgiving, per GeneratorResume behavior specified since ES2015:
+        // ES2015 spec, step 3: https://262.ecma-international.org/6.0/#sec-generatorresume
+        // Latest spec, step 2: https://tc39.es/ecma262/#sec-generatorresume
+        return doneResult();
+      }
+
+      context.method = method;
+      context.arg = arg;
+
+      while (true) {
+        var delegate = context.delegate;
+        if (delegate) {
+          var delegateResult = maybeInvokeDelegate(delegate, context);
+          if (delegateResult) {
+            if (delegateResult === ContinueSentinel) continue;
+            return delegateResult;
+          }
+        }
+
+        if (context.method === "next") {
+          // Setting context._sent for legacy support of Babel's
+          // function.sent implementation.
+          context.sent = context._sent = context.arg;
+
+        } else if (context.method === "throw") {
+          if (state === GenStateSuspendedStart) {
+            state = GenStateCompleted;
+            throw context.arg;
+          }
+
+          context.dispatchException(context.arg);
+
+        } else if (context.method === "return") {
+          context.abrupt("return", context.arg);
+        }
+
+        state = GenStateExecuting;
+
+        var record = tryCatch(innerFn, self, context);
+        if (record.type === "normal") {
+          // If an exception is thrown from innerFn, we leave state ===
+          // GenStateExecuting and loop back for another invocation.
+          state = context.done
+            ? GenStateCompleted
+            : GenStateSuspendedYield;
+
+          if (record.arg === ContinueSentinel) {
+            continue;
+          }
+
+          return {
+            value: record.arg,
+            done: context.done
+          };
+
+        } else if (record.type === "throw") {
+          state = GenStateCompleted;
+          // Dispatch the exception by looping back around to the
+          // context.dispatchException(context.arg) call above.
+          context.method = "throw";
+          context.arg = record.arg;
+        }
+      }
+    };
+  }
+
+  // Call delegate.iterator[context.method](context.arg) and handle the
+  // result, either by returning a { value, done } result from the
+  // delegate iterator, or by modifying context.method and context.arg,
+  // setting context.delegate to null, and returning the ContinueSentinel.
+  function maybeInvokeDelegate(delegate, context) {
+    var methodName = context.method;
+    var method = delegate.iterator[methodName];
+    if (method === undefined) {
+      // A .throw or .return when the delegate iterator has no .throw
+      // method, or a missing .next method, always terminate the
+      // yield* loop.
+      context.delegate = null;
+
+      // Note: ["return"] must be used for ES3 parsing compatibility.
+      if (methodName === "throw" && delegate.iterator["return"]) {
+        // If the delegate iterator has a return method, give it a
+        // chance to clean up.
+        context.method = "return";
+        context.arg = undefined;
+        maybeInvokeDelegate(delegate, context);
+
+        if (context.method === "throw") {
+          // If maybeInvokeDelegate(context) changed context.method from
+          // "return" to "throw", let that override the TypeError below.
+          return ContinueSentinel;
+        }
+      }
+      if (methodName !== "return") {
+        context.method = "throw";
+        context.arg = new TypeError(
+          "The iterator does not provide a '" + methodName + "' method");
+      }
+
+      return ContinueSentinel;
+    }
+
+    var record = tryCatch(method, delegate.iterator, context.arg);
+
+    if (record.type === "throw") {
+      context.method = "throw";
+      context.arg = record.arg;
+      context.delegate = null;
+      return ContinueSentinel;
+    }
+
+    var info = record.arg;
+
+    if (! info) {
+      context.method = "throw";
+      context.arg = new TypeError("iterator result is not an object");
+      context.delegate = null;
+      return ContinueSentinel;
+    }
+
+    if (info.done) {
+      // Assign the result of the finished delegate to the temporary
+      // variable specified by delegate.resultName (see delegateYield).
+      context[delegate.resultName] = info.value;
+
+      // Resume execution at the desired location (see delegateYield).
+      context.next = delegate.nextLoc;
+
+      // If context.method was "throw" but the delegate handled the
+      // exception, let the outer generator proceed normally. If
+      // context.method was "next", forget context.arg since it has been
+      // "consumed" by the delegate iterator. If context.method was
+      // "return", allow the original .return call to continue in the
+      // outer generator.
+      if (context.method !== "return") {
+        context.method = "next";
+        context.arg = undefined;
+      }
+
+    } else {
+      // Re-yield the result returned by the delegate method.
+      return info;
+    }
+
+    // The delegate iterator is finished, so forget it and continue with
+    // the outer generator.
+    context.delegate = null;
+    return ContinueSentinel;
+  }
+
+  // Define Generator.prototype.{next,throw,return} in terms of the
+  // unified ._invoke helper method.
+  defineIteratorMethods(Gp);
+
+  define(Gp, toStringTagSymbol, "Generator");
+
+  // A Generator should always return itself as the iterator object when the
+  // @@iterator function is called on it. Some browsers' implementations of the
+  // iterator prototype chain incorrectly implement this, causing the Generator
+  // object to not be returned from this call. This ensures that doesn't happen.
+  // See https://github.com/facebook/regenerator/issues/274 for more details.
+  define(Gp, iteratorSymbol, function() {
+    return this;
+  });
+
+  define(Gp, "toString", function() {
+    return "[object Generator]";
+  });
+
+  function pushTryEntry(locs) {
+    var entry = { tryLoc: locs[0] };
+
+    if (1 in locs) {
+      entry.catchLoc = locs[1];
+    }
+
+    if (2 in locs) {
+      entry.finallyLoc = locs[2];
+      entry.afterLoc = locs[3];
+    }
+
+    this.tryEntries.push(entry);
+  }
+
+  function resetTryEntry(entry) {
+    var record = entry.completion || {};
+    record.type = "normal";
+    delete record.arg;
+    entry.completion = record;
+  }
+
+  function Context(tryLocsList) {
+    // The root entry object (effectively a try statement without a catch
+    // or a finally block) gives us a place to store values thrown from
+    // locations where there is no enclosing try statement.
+    this.tryEntries = [{ tryLoc: "root" }];
+    tryLocsList.forEach(pushTryEntry, this);
+    this.reset(true);
+  }
+
+  exports.keys = function(val) {
+    var object = Object(val);
+    var keys = [];
+    for (var key in object) {
+      keys.push(key);
+    }
+    keys.reverse();
+
+    // Rather than returning an object with a next method, we keep
+    // things simple and return the next function itself.
+    return function next() {
+      while (keys.length) {
+        var key = keys.pop();
+        if (key in object) {
+          next.value = key;
+          next.done = false;
+          return next;
+        }
+      }
+
+      // To avoid creating an additional object, we just hang the .value
+      // and .done properties off the next function object itself. This
+      // also ensures that the minifier will not anonymize the function.
+      next.done = true;
+      return next;
+    };
+  };
+
+  function values(iterable) {
+    if (iterable != null) {
+      var iteratorMethod = iterable[iteratorSymbol];
+      if (iteratorMethod) {
+        return iteratorMethod.call(iterable);
+      }
+
+      if (typeof iterable.next === "function") {
+        return iterable;
+      }
+
+      if (!isNaN(iterable.length)) {
+        var i = -1, next = function next() {
+          while (++i < iterable.length) {
+            if (hasOwn.call(iterable, i)) {
+              next.value = iterable[i];
+              next.done = false;
+              return next;
+            }
+          }
+
+          next.value = undefined;
+          next.done = true;
+
+          return next;
+        };
+
+        return next.next = next;
+      }
+    }
+
+    throw new TypeError(typeof iterable + " is not iterable");
+  }
+  exports.values = values;
+
+  function doneResult() {
+    return { value: undefined, done: true };
+  }
+
+  Context.prototype = {
+    constructor: Context,
+
+    reset: function(skipTempReset) {
+      this.prev = 0;
+      this.next = 0;
+      // Resetting context._sent for legacy support of Babel's
+      // function.sent implementation.
+      this.sent = this._sent = undefined;
+      this.done = false;
+      this.delegate = null;
+
+      this.method = "next";
+      this.arg = undefined;
+
+      this.tryEntries.forEach(resetTryEntry);
+
+      if (!skipTempReset) {
+        for (var name in this) {
+          // Not sure about the optimal order of these conditions:
+          if (name.charAt(0) === "t" &&
+              hasOwn.call(this, name) &&
+              !isNaN(+name.slice(1))) {
+            this[name] = undefined;
+          }
+        }
+      }
+    },
+
+    stop: function() {
+      this.done = true;
+
+      var rootEntry = this.tryEntries[0];
+      var rootRecord = rootEntry.completion;
+      if (rootRecord.type === "throw") {
+        throw rootRecord.arg;
+      }
+
+      return this.rval;
+    },
+
+    dispatchException: function(exception) {
+      if (this.done) {
+        throw exception;
+      }
+
+      var context = this;
+      function handle(loc, caught) {
+        record.type = "throw";
+        record.arg = exception;
+        context.next = loc;
+
+        if (caught) {
+          // If the dispatched exception was caught by a catch block,
+          // then let that catch block handle the exception normally.
+          context.method = "next";
+          context.arg = undefined;
+        }
+
+        return !! caught;
+      }
+
+      for (var i = this.tryEntries.length - 1; i >= 0; --i) {
+        var entry = this.tryEntries[i];
+        var record = entry.completion;
+
+        if (entry.tryLoc === "root") {
+          // Exception thrown outside of any try block that could handle
+          // it, so set the completion value of the entire function to
+          // throw the exception.
+          return handle("end");
+        }
+
+        if (entry.tryLoc <= this.prev) {
+          var hasCatch = hasOwn.call(entry, "catchLoc");
+          var hasFinally = hasOwn.call(entry, "finallyLoc");
+
+          if (hasCatch && hasFinally) {
+            if (this.prev < entry.catchLoc) {
+              return handle(entry.catchLoc, true);
+            } else if (this.prev < entry.finallyLoc) {
+              return handle(entry.finallyLoc);
+            }
+
+          } else if (hasCatch) {
+            if (this.prev < entry.catchLoc) {
+              return handle(entry.catchLoc, true);
+            }
+
+          } else if (hasFinally) {
+            if (this.prev < entry.finallyLoc) {
+              return handle(entry.finallyLoc);
+            }
+
+          } else {
+            throw new Error("try statement without catch or finally");
+          }
+        }
+      }
+    },
+
+    abrupt: function(type, arg) {
+      for (var i = this.tryEntries.length - 1; i >= 0; --i) {
+        var entry = this.tryEntries[i];
+        if (entry.tryLoc <= this.prev &&
+            hasOwn.call(entry, "finallyLoc") &&
+            this.prev < entry.finallyLoc) {
+          var finallyEntry = entry;
+          break;
+        }
+      }
+
+      if (finallyEntry &&
+          (type === "break" ||
+           type === "continue") &&
+          finallyEntry.tryLoc <= arg &&
+          arg <= finallyEntry.finallyLoc) {
+        // Ignore the finally entry if control is not jumping to a
+        // location outside the try/catch block.
+        finallyEntry = null;
+      }
+
+      var record = finallyEntry ? finallyEntry.completion : {};
+      record.type = type;
+      record.arg = arg;
+
+      if (finallyEntry) {
+        this.method = "next";
+        this.next = finallyEntry.finallyLoc;
+        return ContinueSentinel;
+      }
+
+      return this.complete(record);
+    },
+
+    complete: function(record, afterLoc) {
+      if (record.type === "throw") {
+        throw record.arg;
+      }
+
+      if (record.type === "break" ||
+          record.type === "continue") {
+        this.next = record.arg;
+      } else if (record.type === "return") {
+        this.rval = this.arg = record.arg;
+        this.method = "return";
+        this.next = "end";
+      } else if (record.type === "normal" && afterLoc) {
+        this.next = afterLoc;
+      }
+
+      return ContinueSentinel;
+    },
+
+    finish: function(finallyLoc) {
+      for (var i = this.tryEntries.length - 1; i >= 0; --i) {
+        var entry = this.tryEntries[i];
+        if (entry.finallyLoc === finallyLoc) {
+          this.complete(entry.completion, entry.afterLoc);
+          resetTryEntry(entry);
+          return ContinueSentinel;
+        }
+      }
+    },
+
+    "catch": function(tryLoc) {
+      for (var i = this.tryEntries.length - 1; i >= 0; --i) {
+        var entry = this.tryEntries[i];
+        if (entry.tryLoc === tryLoc) {
+          var record = entry.completion;
+          if (record.type === "throw") {
+            var thrown = record.arg;
+            resetTryEntry(entry);
+          }
+          return thrown;
+        }
+      }
+
+      // The context.catch method must only be called with a location
+      // argument that corresponds to a known catch block.
+      throw new Error("illegal catch attempt");
+    },
+
+    delegateYield: function(iterable, resultName, nextLoc) {
+      this.delegate = {
+        iterator: values(iterable),
+        resultName: resultName,
+        nextLoc: nextLoc
+      };
+
+      if (this.method === "next") {
+        // Deliberately forget the last sent value so that we don't
+        // accidentally pass it on to the delegate.
+        this.arg = undefined;
+      }
+
+      return ContinueSentinel;
+    }
+  };
+
+  // Regardless of whether this script is executing as a CommonJS module
+  // or not, return the runtime object so that we can declare the variable
+  // regeneratorRuntime in the outer scope, which allows this module to be
+  // injected easily by `bin/regenerator --include-runtime script.js`.
+  return exports;
+
+}(
+  // If this script is executing as a CommonJS module, use module.exports
+  // as the regeneratorRuntime namespace. Otherwise create a new empty
+  // object. Either way, the resulting object will be used to initialize
+  // the regeneratorRuntime variable at the top of this file.
+  typeof module === "object" ? module.exports : {}
+));
+
+try {
+  regeneratorRuntime = runtime;
+} catch (accidentalStrictMode) {
+  // This module should not be running in strict mode, so the above
+  // assignment should always work unless something is misconfigured. Just
+  // in case runtime.js accidentally runs in strict mode, in modern engines
+  // we can explicitly access globalThis. In older engines we can escape
+  // strict mode using a global Function call. This could conceivably fail
+  // if a Content Security Policy forbids using Function, but in that case
+  // the proper solution is to fix the accidental strict mode problem. If
+  // you've misconfigured your bundler to force strict mode and applied a
+  // CSP to forbid Function, and you're not willing to fix either of those
+  // problems, please detail your unique predicament in a GitHub issue.
+  if (typeof globalThis === "object") {
+    globalThis.regeneratorRuntime = runtime;
+  } else {
+    Function("r", "regeneratorRuntime = r")(runtime);
+  }
+}
+
+</script>
+  <script>
+/* GENERADO desde index.src.html por tools/build-visitor.js — NO editar */
+function _regenerator() { var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
+function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
+function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
+var API_BASE = '';
+var qrId = window.location.pathname.split('/').filter(Boolean).pop();
+function leerNombreVisitante() {
+  var el = document.getElementById('visitor-name');
+  return el && el.value ? el.value.trim() : '';
+}
+var casa = null;
+var ringing = false;
+function loadCasa() {
+  return _loadCasa.apply(this, arguments);
+}
+function _loadCasa() {
+  _loadCasa = _asyncToGenerator(_regenerator().m(function _callee2() {
+    var ctrl, timer, res, data, _t3;
+    return _regenerator().w(function (_context2) {
+      while (1) switch (_context2.p = _context2.n) {
+        case 0:
+          ctrl = new AbortController();
+          timer = setTimeout(function () {
+            return ctrl.abort();
+          }, 8000);
+          _context2.p = 1;
+          _context2.n = 2;
+          return fetch("".concat(API_BASE, "/api/visitor/").concat(qrId), {
+            signal: ctrl.signal
+          });
+        case 2:
+          res = _context2.v;
+          clearTimeout(timer);
+          _context2.n = 3;
+          return res.json();
+        case 3:
+          data = _context2.v;
+          if (!(!res.ok || !data.success)) {
+            _context2.n = 4;
+            break;
+          }
+          throw new Error(data.error || 'QR no válido');
+        case 4:
+          casa = data.casa;
+          render();
+          _context2.n = 6;
+          break;
+        case 5:
+          _context2.p = 5;
+          _t3 = _context2.v;
+          clearTimeout(timer);
+          if (_t3.name === 'AbortError' || _t3.message === 'Failed to fetch') {
+            renderError('No se pudo conectar con el timbre. Verificá tu conexión a internet e intentá de nuevo.', true);
+          } else {
+            renderError(_t3.message);
+          }
+        case 6:
+          return _context2.a(2);
+      }
+    }, _callee2, null, [[1, 5]]);
+  }));
+  return _loadCasa.apply(this, arguments);
+}
+function ringDoorbell() {
+  return _ringDoorbell.apply(this, arguments);
+}
+function _ringDoorbell() {
+  _ringDoorbell = _asyncToGenerator(_regenerator().m(function _callee3() {
+    var btn, hint, statusMsg, visitorName, res, data, _t4;
+    return _regenerator().w(function (_context3) {
+      while (1) switch (_context3.p = _context3.n) {
+        case 0:
+          if (!ringing) {
+            _context3.n = 1;
+            break;
+          }
+          return _context3.a(2);
+        case 1:
+          ringing = true;
+          btn = document.getElementById('ring-btn');
+          hint = document.getElementById('ring-hint');
+          statusMsg = document.getElementById('status-msg');
+          visitorName = leerNombreVisitante();
+          btn.classList.add('ringing');
+          btn.innerHTML = "<div class=\"spinner\"></div>";
+          hint.textContent = 'Enviando timbrazo...';
+          statusMsg.classList.remove('show', 'success', 'error');
+          _context3.p = 2;
+          _context3.n = 3;
+          return fetch("".concat(API_BASE, "/api/visitor/").concat(qrId, "/ring"), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              visitorName: visitorName
+            })
+          });
+        case 3:
+          res = _context3.v;
+          _context3.n = 4;
+          return res.json();
+        case 4:
+          data = _context3.v;
+          if (res.ok) {
+            _context3.n = 5;
+            break;
+          }
+          throw new Error(data.error || 'Error enviando timbrazo');
+        case 5:
+          btn.classList.remove('ringing');
+          btn.classList.add('success');
+          btn.innerHTML = "<span class=\"ring-btn-emoji ring-anim\">\u2705</span><span class=\"ring-btn-text\">Enviado!</span>";
+          hint.textContent = '¡Timbre enviado! El dueño fue notificado.';
+          statusMsg.textContent = '🔔 El timbre fue tocado correctamente.';
+          statusMsg.classList.add('show', 'success');
+          setTimeout(function () {
+            btn.classList.remove('success');
+            btn.innerHTML = "<span class=\"ring-btn-emoji\">\uD83D\uDD14</span><span class=\"ring-btn-text\">Tocar Timbre</span>";
+            hint.textContent = '¿Necesitas tocar nuevamente?';
+            statusMsg.classList.remove('show', 'success');
+            ringing = false;
+          }, 5000);
+          _context3.n = 7;
+          break;
+        case 6:
+          _context3.p = 6;
+          _t4 = _context3.v;
+          btn.classList.remove('ringing');
+          btn.innerHTML = "<span class=\"ring-btn-emoji\">\uD83D\uDD14</span><span class=\"ring-btn-text\">Tocar Timbre</span>";
+          hint.textContent = 'Intenta nuevamente';
+          statusMsg.textContent = '⚠️ ' + (_t4.message || 'No se pudo enviar el timbrazo.');
+          statusMsg.classList.add('show', 'error');
+          setTimeout(function () {
+            statusMsg.classList.remove('show', 'error');
+          }, 5000);
+          ringing = false;
+        case 7:
+          return _context3.a(2);
+      }
+    }, _callee3, null, [[2, 6]]);
+  }));
+  return _ringDoorbell.apply(this, arguments);
+}
+function render() {
+  if (window.__cancelWatchdog) window.__cancelWatchdog();
+  var app = document.getElementById('app');
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          <div class=\"house-card\">\n            ".concat(casa.foto_fachada ? "<img src=\"".concat(casa.foto_fachada, "\" alt=\"Fachada\" class=\"house-photo\" />") : "<div class=\"house-photo-placeholder\">\n                  <span class=\"house-photo-placeholder-icon\">\uD83C\uDFE0</span>\n                  <span class=\"house-photo-placeholder-text\">Casa de ".concat(casa.nombreCompleto, "</span>\n                </div>"), "\n            <div class=\"house-info\">\n              <div class=\"house-owner\">").concat(escapeHtml(casa.nombreCompleto), "</div>\n              ").concat(casa.direccion ? "<div class=\"house-address\">\uD83D\uDCCD ".concat(escapeHtml(casa.direccion), "</div>") : '', "\n            </div>\n          </div>\n\n          <div class=\"name-section\">\n            <label class=\"name-label\" for=\"visitor-name\">Tu nombre (opcional)</label>\n            <input\n              type=\"text\" id=\"visitor-name\"\n              class=\"name-input\"\n              placeholder=\"\xBFC\xF3mo te llamas?\"\n              maxlength=\"60\"\n              autocomplete=\"name\"\n            />\n          </div>\n\n          <div class=\"ring-section\">\n            <div class=\"ring-btn-wrapper\">\n              <div class=\"ring-btn-glow\"></div>\n              <button class=\"ring-btn\" id=\"ring-btn\" onclick=\"ringDoorbell()\" aria-label=\"Tocar timbre\">\n                <span class=\"ring-btn-emoji\">\uD83D\uDD14</span>\n                <span class=\"ring-btn-text\">Tocar Timbre</span>\n              </button>\n            </div>\n            <p class=\"ring-hint\" id=\"ring-hint\">Toca el bot\xF3n para avisar que est\xE1s en la puerta</p>\n          </div>\n\n          <button class=\"video-btn\" id=\"video-btn\" onclick=\"startVideoCall()\">\n            <span class=\"video-btn-icon\">\uD83D\uDCF9</span>\n            <span>Iniciar videollamada</span>\n          </button>\n\n          <div class=\"status-msg\" id=\"status-msg\"></div>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
+  var btn = document.getElementById('ring-btn');
+  var glow = btn && btn.previousElementSibling;
+  if (btn && glow) {
+    btn.addEventListener('mouseenter', function () {
+      return glow.style.opacity = '1';
+    });
+    btn.addEventListener('mouseleave', function () {
+      return glow.style.opacity = '0';
+    });
+  }
+}
+function renderError(msg, retry) {
+  if (window.__cancelWatchdog) window.__cancelWatchdog();
+  var app = document.getElementById('app');
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"error-page\">\n            <div class=\"error-icon\">".concat(retry ? '📶' : '🚫', "</div>\n            <div class=\"error-title\">").concat(retry ? 'Sin conexión' : 'QR no válido', "</div>\n            <div class=\"error-text\">").concat(escapeHtml(msg || 'Este timbre digital no existe o fue desactivado.'), "</div>\n            ").concat(retry ? "<button class=\"ring-btn\" style=\"width:auto;height:auto;border-radius:14px;padding:14px 28px;margin-top:20px;\" onclick=\"location.reload()\">Reintentar</button>" : '', "\n          </div>\n        </div>\n      ");
+}
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+var pc = null;
+var localStream = null;
+var callId = null;
+var pollTimer = null;
+var pollCursor = 0;
+var callActive = false;
+var usingFront = true;
+var durTimer = null;
+var callOverlay = function callOverlay() {
+  return document.getElementById('call-overlay');
+};
+function setCallStatus(text, connected) {
+  var wrap = document.getElementById('call-status');
+  var txt = document.getElementById('call-status-text');
+  if (txt) txt.textContent = text;
+  if (wrap) wrap.classList.toggle('calling', !connected);
+}
+function showCallCenter(text) {
+  var c = document.getElementById('call-center');
+  var t = document.getElementById('call-center-text');
+  if (t && text) t.textContent = text;
+  if (c) c.style.display = text ? 'flex' : 'none';
+}
+function startVideoCall() {
+  return _startVideoCall.apply(this, arguments);
+}
+function _startVideoCall() {
+  _startVideoCall = _asyncToGenerator(_regenerator().m(function _callee4() {
+    var visitorName, startRes, startData, offer, _t5, _t6;
+    return _regenerator().w(function (_context4) {
+      while (1) switch (_context4.p = _context4.n) {
+        case 0:
+          if (!callActive) {
+            _context4.n = 1;
+            break;
+          }
+          return _context4.a(2);
+        case 1:
+          visitorName = leerNombreVisitante();
+          _context4.p = 2;
+          _context4.n = 3;
+          return navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: usingFront ? 'user' : 'environment'
+            },
+            audio: true
+          });
+        case 3:
+          localStream = _context4.v;
+          _context4.n = 5;
+          break;
+        case 4:
+          _context4.p = 4;
+          _t5 = _context4.v;
+          alert('Necesitamos permiso de cámara y micrófono para la videollamada.');
+          return _context4.a(2);
+        case 5:
+          callActive = true;
+          callOverlay().classList.add('show');
+          document.getElementById('local-video').srcObject = localStream;
+          setCallStatus('Llamando…', false);
+          showCallCenter('Esperando que atiendan…');
+          _context4.p = 6;
+          _context4.n = 7;
+          return fetch("".concat(API_BASE, "/api/calls/start/").concat(qrId), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              visitorName: visitorName
+            })
+          });
+        case 7:
+          startRes = _context4.v;
+          _context4.n = 8;
+          return startRes.json();
+        case 8:
+          startData = _context4.v;
+          if (!(!startRes.ok || !startData.success)) {
+            _context4.n = 9;
+            break;
+          }
+          throw new Error(startData.error || 'No se pudo iniciar la llamada');
+        case 9:
+          callId = startData.callId;
+          pc = new RTCPeerConnection({
+            iceServers: startData.iceServers || []
+          });
+          localStream.getTracks().forEach(function (t) {
+            return pc.addTrack(t, localStream);
+          });
+          pc.ontrack = function (e) {
+            document.getElementById('remote-video').srcObject = e.streams[0];
+            showCallCenter('');
+            setCallStatus('Conectado', true);
+            startDuration();
+          };
+          pc.onicecandidate = function (e) {
+            if (e.candidate) sendSignal('ice', e.candidate.toJSON());
+          };
+          pc.onconnectionstatechange = function () {
+            if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && callActive) {
+              endCall('Llamada finalizada');
+            }
+          };
+          _context4.n = 10;
+          return pc.createOffer();
+        case 10:
+          offer = _context4.v;
+          _context4.n = 11;
+          return pc.setLocalDescription(offer);
+        case 11:
+          _context4.n = 12;
+          return sendSignal('offer', {
+            type: offer.type,
+            sdp: offer.sdp
+          });
+        case 12:
+          startPolling();
+          _context4.n = 14;
+          break;
+        case 13:
+          _context4.p = 13;
+          _t6 = _context4.v;
+          endCall(_t6.message || 'No se pudo iniciar la llamada');
+        case 14:
+          return _context4.a(2);
+      }
+    }, _callee4, null, [[6, 13], [2, 4]]);
+  }));
+  return _startVideoCall.apply(this, arguments);
+}
+function sendSignal(_x, _x2) {
+  return _sendSignal.apply(this, arguments);
+}
+function _sendSignal() {
+  _sendSignal = _asyncToGenerator(_regenerator().m(function _callee5(tipo, payload) {
+    var _t7;
+    return _regenerator().w(function (_context5) {
+      while (1) switch (_context5.p = _context5.n) {
+        case 0:
+          if (callId) {
+            _context5.n = 1;
+            break;
+          }
+          return _context5.a(2);
+        case 1:
+          _context5.p = 1;
+          _context5.n = 2;
+          return fetch("".concat(API_BASE, "/api/calls/").concat(callId, "/visitor/signal"), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              tipo: tipo,
+              payload: payload
+            })
+          });
+        case 2:
+          _context5.n = 4;
+          break;
+        case 3:
+          _context5.p = 3;
+          _t7 = _context5.v;
+        case 4:
+          return _context5.a(2);
+      }
+    }, _callee5, null, [[1, 3]]);
+  }));
+  return _sendSignal.apply(this, arguments);
+}
+function startPolling() {
+  var poll = function () {
+    var _ref = _asyncToGenerator(_regenerator().m(function _callee() {
+      var res, data, _iterator, _step, sig, _t, _t2;
+      return _regenerator().w(function (_context) {
+        while (1) switch (_context.p = _context.n) {
+          case 0:
+            if (!(!callActive || !callId)) {
+              _context.n = 1;
+              break;
+            }
+            return _context.a(2);
+          case 1:
+            _context.p = 1;
+            _context.n = 2;
+            return fetch("".concat(API_BASE, "/api/calls/").concat(callId, "/visitor/poll?after=").concat(pollCursor));
+          case 2:
+            res = _context.v;
+            _context.n = 3;
+            return res.json();
+          case 3:
+            data = _context.v;
+            if (data.success) {
+              _context.n = 4;
+              break;
+            }
+            return _context.a(2);
+          case 4:
+            if (!['ended', 'rejected', 'timeout'].includes(data.estado)) {
+              _context.n = 5;
+              break;
+            }
+            endCall(data.estado === 'rejected' ? 'Llamada rechazada' : 'Llamada finalizada');
+            return _context.a(2);
+          case 5:
+            if (data.estado === 'accepted') setCallStatus('Conectando…', false);
+            pollCursor = data.cursor || pollCursor;
+            _iterator = _createForOfIteratorHelper(data.signals || []);
+            _context.p = 6;
+            _iterator.s();
+          case 7:
+            if ((_step = _iterator.n()).done) {
+              _context.n = 9;
+              break;
+            }
+            sig = _step.value;
+            _context.n = 8;
+            return handleRemoteSignal(sig);
+          case 8:
+            _context.n = 7;
+            break;
+          case 9:
+            _context.n = 11;
+            break;
+          case 10:
+            _context.p = 10;
+            _t = _context.v;
+            _iterator.e(_t);
+          case 11:
+            _context.p = 11;
+            _iterator.f();
+            return _context.f(11);
+          case 12:
+            _context.n = 14;
+            break;
+          case 13:
+            _context.p = 13;
+            _t2 = _context.v;
+          case 14:
+            return _context.a(2);
+        }
+      }, _callee, null, [[6, 10, 11, 12], [1, 13]]);
+    }));
+    return function poll() {
+      return _ref.apply(this, arguments);
+    };
+  }();
+  poll();
+  pollTimer = setInterval(poll, 1200);
+}
+function handleRemoteSignal(_x3) {
+  return _handleRemoteSignal.apply(this, arguments);
+}
+function _handleRemoteSignal() {
+  _handleRemoteSignal = _asyncToGenerator(_regenerator().m(function _callee6(sig) {
+    var _t8;
+    return _regenerator().w(function (_context6) {
+      while (1) switch (_context6.p = _context6.n) {
+        case 0:
+          if (pc) {
+            _context6.n = 1;
+            break;
+          }
+          return _context6.a(2);
+        case 1:
+          _context6.p = 1;
+          if (!(sig.tipo === 'answer')) {
+            _context6.n = 3;
+            break;
+          }
+          _context6.n = 2;
+          return pc.setRemoteDescription(new RTCSessionDescription(sig.payload));
+        case 2:
+          _context6.n = 4;
+          break;
+        case 3:
+          if (!(sig.tipo === 'ice')) {
+            _context6.n = 4;
+            break;
+          }
+          _context6.n = 4;
+          return pc.addIceCandidate(new RTCIceCandidate(sig.payload));
+        case 4:
+          _context6.n = 6;
+          break;
+        case 5:
+          _context6.p = 5;
+          _t8 = _context6.v;
+        case 6:
+          return _context6.a(2);
+      }
+    }, _callee6, null, [[1, 5]]);
+  }));
+  return _handleRemoteSignal.apply(this, arguments);
+}
+function toggleMic() {
+  if (!localStream) return;
+  var track = localStream.getAudioTracks()[0];
+  if (!track) return;
+  track.enabled = !track.enabled;
+  document.getElementById('ctrl-mic').classList.toggle('off', !track.enabled);
+}
+function switchCamera() {
+  return _switchCamera.apply(this, arguments);
+}
+function _switchCamera() {
+  _switchCamera = _asyncToGenerator(_regenerator().m(function _callee7() {
+    var newStream, newTrack, sender, _t9;
+    return _regenerator().w(function (_context7) {
+      while (1) switch (_context7.p = _context7.n) {
+        case 0:
+          if (!(!localStream || !pc)) {
+            _context7.n = 1;
+            break;
+          }
+          return _context7.a(2);
+        case 1:
+          usingFront = !usingFront;
+          _context7.p = 2;
+          _context7.n = 3;
+          return navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: usingFront ? 'user' : 'environment'
+            },
+            audio: true
+          });
+        case 3:
+          newStream = _context7.v;
+          newTrack = newStream.getVideoTracks()[0];
+          sender = pc.getSenders().find(function (s) {
+            return s.track && s.track.kind === 'video';
+          });
+          if (!(sender && newTrack)) {
+            _context7.n = 4;
+            break;
+          }
+          _context7.n = 4;
+          return sender.replaceTrack(newTrack);
+        case 4:
+          localStream.getVideoTracks().forEach(function (t) {
+            t.stop();
+            localStream.removeTrack(t);
+          });
+          localStream.addTrack(newTrack);
+          document.getElementById('local-video').srcObject = localStream;
+          _context7.n = 6;
+          break;
+        case 5:
+          _context7.p = 5;
+          _t9 = _context7.v;
+          usingFront = !usingFront;
+        case 6:
+          return _context7.a(2);
+      }
+    }, _callee7, null, [[2, 5]]);
+  }));
+  return _switchCamera.apply(this, arguments);
+}
+function startDuration() {
+  if (durTimer) return;
+  var t0 = Date.now();
+  durTimer = setInterval(function () {
+    var s = Math.floor((Date.now() - t0) / 1000);
+    var mm = String(Math.floor(s / 60)).padStart(2, '0');
+    var ss = String(s % 60).padStart(2, '0');
+    setCallStatus("Conectado \xB7 ".concat(mm, ":").concat(ss), true);
+  }, 1000);
+}
+function hangupCall() {
+  return _hangupCall.apply(this, arguments);
+}
+function _hangupCall() {
+  _hangupCall = _asyncToGenerator(_regenerator().m(function _callee8() {
+    var _t0;
+    return _regenerator().w(function (_context8) {
+      while (1) switch (_context8.p = _context8.n) {
+        case 0:
+          if (!callId) {
+            _context8.n = 4;
+            break;
+          }
+          _context8.p = 1;
+          _context8.n = 2;
+          return fetch("".concat(API_BASE, "/api/calls/").concat(callId, "/visitor/hangup"), {
+            method: 'POST'
+          });
+        case 2:
+          _context8.n = 4;
+          break;
+        case 3:
+          _context8.p = 3;
+          _t0 = _context8.v;
+        case 4:
+          endCall('Llamada finalizada');
+        case 5:
+          return _context8.a(2);
+      }
+    }, _callee8, null, [[1, 3]]);
+  }));
+  return _hangupCall.apply(this, arguments);
+}
+function endCall(msg) {
+  callActive = false;
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  if (durTimer) {
+    clearInterval(durTimer);
+    durTimer = null;
+  }
+  if (pc) {
+    try {
+      pc.close();
+    } catch (e) {}
+    pc = null;
+  }
+  if (localStream) {
+    localStream.getTracks().forEach(function (t) {
+      return t.stop();
+    });
+    localStream = null;
+  }
+  callId = null;
+  pollCursor = 0;
+  callOverlay().classList.remove('show');
+  var rv = document.getElementById('remote-video');
+  if (rv) rv.srcObject = null;
+  showCallCenter('Esperando que atiendan…');
+  setCallStatus('Llamando…', false);
+}
+if (!qrId || qrId === 'visit') {
+  renderError('URL inválida. Escanea el QR del timbre correctamente.');
+} else {
+  loadCasa();
+}
+</script>
 </body>
 </html>
