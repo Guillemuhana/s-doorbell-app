@@ -4,9 +4,11 @@
 //  • consulta videollamadas entrantes y abre la pantalla de llamada.
 // También abre la llamada si el usuario toca una notificación push INCOMING_CALL.
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { eventosAPI, callsAPI } from '../utils/api';
 import { scheduleLocalNotification, addNotificationResponseListener } from '../utils/notifications';
+import { reproducirTimbre, armarDesbloqueoDeAudio } from '../utils/doorbellSound';
 import { navigate } from '../navigation/navigationRef';
 
 const POLL_MS = 7000;
@@ -23,6 +25,11 @@ export default function RingWatcher() {
     navigate('Call', { callId, visitorName, direccionNombre });
   };
 
+  // En web, habilita el audio en el primer toque del usuario (requisito de iOS).
+  useEffect(() => {
+    if (isAuthenticated) armarDesbloqueoDeAudio();
+  }, [isAuthenticated]);
+
   // ─── Timbrazos + videollamadas entrantes (polling) ─────────────────────────
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -38,6 +45,9 @@ export default function RingWatcher() {
         );
         if (nuevos.length && !stopped) {
           sinceRef.current = nuevos.map((e) => e.createdAt).sort().pop();
+          // En el PWA (web) expo-notifications no suena: reproducimos el timbre
+          // con Web Audio. En nativo, el sonido va con la notificación local.
+          if (Platform.OS === 'web') reproducirTimbre();
           for (const e of nuevos.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))) {
             const visitante = e.visitorName || 'Alguien';
             const lugar = e.direccionId?.nombre ? ` · ${e.direccionId.nombre}` : '';
