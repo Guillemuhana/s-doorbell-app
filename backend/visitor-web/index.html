@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>S-Doorbell — Tocar Timbre</title>
   <meta name="description" content="Timbre digital inteligente" />
-  <meta name="theme-color" content="#000000" />
+  <meta name="theme-color" content="#2E9BE0" />
   <link rel="manifest" href="/manifest.json" />
 
   <!-- Open Graph -->
@@ -15,28 +15,33 @@
 
   <style>
     :root {
-      --blue: #007AFF;
-      --blue-dark: #0056CC;
-      --blue-glow: rgba(0, 122, 255, 0.35);
-      --success: #34C759;
-      --error: #FF3B30;
+      --brand: #2E9BE0;
+      --brand-dark: #1E7DBC;
+      --gold: #E0A82E;
+      --gold-dark: #C48F1E;
+      --ink: #1B2735;
+      --muted: #6B7787;
+      --line: #E4EAF1;
+      --card: #FFFFFF;
+      --success: #2FA35A;
+      --error: #E0483B;
       --white: #FFFFFF;
-      --gray-400: #8E8E93;
-      --gray-600: #48484A;
-      --gray-800: #2C2C2E;
-      --gray-900: #1C1C1E;
+      --gray-900: #10161E; /* usado por la videollamada (fondo oscuro) */
+      --gray-800: #1C1C1E;
+      --gray-400: #8E98A6;
       --black: #000000;
-      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     html, body {
       height: 100%;
-      background: var(--black);
-      color: var(--white);
+      background: #EEF3F8;
+      color: var(--ink);
       font-family: var(--font);
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
     #app {
@@ -45,162 +50,172 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 28px 22px calc(28px + env(safe-area-inset-bottom));
       position: relative;
+      background:
+        radial-gradient(120% 60% at 50% -10%, rgba(46,155,224,0.12), transparent 60%),
+        linear-gradient(180deg, #F4F8FC 0%, #E9F0F7 100%);
     }
 
-    /* Ambient glow effects */
+    /* Blobs de color muy suaves, para dar profundidad sin ensuciar */
     .glow-top {
-      position: fixed; top: -100px; left: 50%;
+      position: fixed; top: -140px; left: 50%;
       transform: translateX(-50%);
-      width: 400px; height: 400px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(0,122,255,0.15) 0%, transparent 70%);
+      width: 420px; height: 420px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(46,155,224,0.18) 0%, transparent 70%);
       pointer-events: none; z-index: 0;
     }
     .glow-bottom {
-      position: fixed; bottom: -150px; right: -100px;
-      width: 350px; height: 350px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(0,122,255,0.08) 0%, transparent 70%);
+      position: fixed; bottom: -160px; right: -120px;
+      width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(224,168,46,0.14) 0%, transparent 70%);
       pointer-events: none; z-index: 0;
     }
 
     .page-content {
       position: relative; z-index: 1;
-      width: 100%; max-width: 420px;
+      width: 100%; max-width: 400px;
       display: flex; flex-direction: column;
-      align-items: center; gap: 24px;
+      align-items: center; gap: 22px;
     }
 
     /* Brand header */
     .brand {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 9px;
       opacity: 0; animation: fadeDown 0.6s ease forwards;
     }
-    .brand-icon { font-size: 24px; }
+    .brand-icon { font-size: 22px; }
     .brand-name {
-      font-size: 18px; font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(135deg, var(--white), rgba(255,255,255,0.7));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      font-size: 17px; font-weight: 800;
+      letter-spacing: -0.3px; color: var(--brand);
     }
 
     /* House card */
     .house-card {
       width: 100%;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 24px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
       overflow: hidden;
-      opacity: 0; animation: fadeUp 0.6s ease 0.2s forwards;
+      box-shadow: 0 12px 30px rgba(27,39,53,0.08), 0 2px 6px rgba(27,39,53,0.04);
+      opacity: 0; animation: fadeUp 0.6s ease 0.15s forwards;
     }
 
     .house-photo {
-      width: 100%; height: 180px;
+      width: 100%; height: 190px;
       object-fit: cover; display: block;
-      background: rgba(0,122,255,0.1);
+      background: #E9F0F7;
     }
 
     .house-photo-placeholder {
-      width: 100%; height: 180px;
-      background: linear-gradient(135deg, rgba(0,122,255,0.15), rgba(0,86,204,0.08));
+      width: 100%; height: 150px;
+      background: linear-gradient(135deg, rgba(46,155,224,0.12), rgba(46,155,224,0.04));
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 8px;
     }
-    .house-photo-placeholder-icon { font-size: 48px; }
-    .house-photo-placeholder-text { color: var(--gray-400); font-size: 13px; }
+    .house-photo-placeholder-icon { font-size: 44px; }
+    .house-photo-placeholder-text { color: var(--muted); font-size: 13px; font-weight: 500; }
 
-    .house-info { padding: 20px; }
-    .house-owner { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-    .house-address { font-size: 14px; color: var(--gray-400); margin-top: 6px; }
+    .house-info { padding: 18px 20px 20px; }
+    .house-info-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      color: var(--brand); text-transform: uppercase; margin-bottom: 6px;
+    }
+    .house-owner { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); }
+    .house-address { font-size: 14px; color: var(--muted); margin-top: 5px; }
 
     /* Visitor name input */
     .name-section {
       width: 100%;
-      opacity: 0; animation: fadeUp 0.6s ease 0.35s forwards;
+      opacity: 0; animation: fadeUp 0.6s ease 0.28s forwards;
     }
     .name-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      color: var(--gray-400); text-transform: uppercase;
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      color: var(--muted); text-transform: uppercase;
       margin-bottom: 8px; display: block;
     }
     .name-input {
       width: 100%; height: 52px;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.12);
+      background: var(--white);
+      border: 1.5px solid var(--line);
       border-radius: 14px;
-      color: var(--white); font-size: 16px;
+      color: var(--ink); font-size: 16px;
       padding: 0 16px; outline: none;
       font-family: var(--font);
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .name-input::placeholder { color: var(--gray-600); }
-    .name-input:focus { border-color: rgba(0,122,255,0.5); }
+    .name-input::placeholder { color: #A8B2BF; }
+    .name-input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(46,155,224,0.12);
+    }
 
     /* THE BUTTON */
     .ring-section {
       display: flex; flex-direction: column;
-      align-items: center; gap: 20px;
-      opacity: 0; animation: fadeUp 0.6s ease 0.5s forwards;
+      align-items: center; gap: 18px;
+      opacity: 0; animation: fadeUp 0.6s ease 0.42s forwards;
     }
 
     .ring-btn-wrapper {
       position: relative;
       width: 200px; height: 200px;
+      display: flex; align-items: center; justify-content: center;
     }
 
+    /* Halo que late para invitar a tocar */
     .ring-btn-glow {
-      position: absolute; inset: -20px;
+      position: absolute; inset: 0;
       border-radius: 50%;
-      background: radial-gradient(circle, var(--blue-glow) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.3s;
+      background: radial-gradient(circle, rgba(224,168,46,0.45) 0%, transparent 68%);
+      animation: halo 2.4s ease-in-out infinite;
       pointer-events: none;
     }
 
     .ring-btn {
-      width: 200px; height: 200px;
+      width: 176px; height: 176px;
       border-radius: 50%; border: none; cursor: pointer;
-      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      background: linear-gradient(145deg, #F0B84A, var(--gold) 55%, var(--gold-dark));
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 8px;
+      align-items: center; justify-content: center; gap: 6px;
       position: relative; z-index: 1;
-      box-shadow: 0 8px 32px rgba(0,122,255,0.4), 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow:
+        0 16px 34px rgba(224,168,46,0.42),
+        0 4px 10px rgba(27,39,53,0.12),
+        inset 0 2px 4px rgba(255,255,255,0.45);
       transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s;
       -webkit-user-select: none; user-select: none;
     }
 
-    .ring-btn:hover .ring-btn-glow { opacity: 1; }
-    .ring-btn:active { transform: scale(0.93); box-shadow: 0 4px 16px rgba(0,122,255,0.3); }
-    .ring-btn.ringing { transform: scale(0.95); opacity: 0.8; cursor: not-allowed; }
-    .ring-btn.success { background: linear-gradient(135deg, var(--success), #27A24B); box-shadow: 0 8px 32px rgba(52,199,89,0.4); }
+    .ring-btn:active { transform: scale(0.93); box-shadow: 0 8px 18px rgba(224,168,46,0.35); }
+    .ring-btn.ringing { transform: scale(0.96); opacity: 0.85; cursor: not-allowed; }
+    .ring-btn.success { background: linear-gradient(145deg, #46C06E, var(--success)); box-shadow: 0 16px 34px rgba(47,163,90,0.4); }
 
-    .ring-btn-emoji { font-size: 52px; pointer-events: none; }
+    .ring-btn-emoji { font-size: 56px; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.15)); }
     .ring-btn-text {
-      color: var(--white); font-size: 13px; font-weight: 900;
-      letter-spacing: 1.5px; text-transform: uppercase;
-      pointer-events: none;
+      color: var(--white); font-size: 12px; font-weight: 900;
+      letter-spacing: 1.4px; text-transform: uppercase;
+      pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.18);
     }
 
-    .ring-hint { color: var(--gray-400); font-size: 13px; text-align: center; line-height: 1.5; }
+    .ring-hint { color: var(--muted); font-size: 13.5px; text-align: center; line-height: 1.5; }
 
     /* Status messages */
     .status-msg {
       width: 100%; padding: 14px 18px;
-      border-radius: 16px; font-size: 14px; font-weight: 600;
+      border-radius: 14px; font-size: 14px; font-weight: 600;
       text-align: center; display: none;
       animation: fadeIn 0.3s ease;
     }
     .status-msg.show { display: block; }
-    .status-msg.success { background: rgba(52,199,89,0.15); color: var(--success); border: 1px solid rgba(52,199,89,0.3); }
-    .status-msg.error { background: rgba(255,59,48,0.15); color: var(--error); border: 1px solid rgba(255,59,48,0.3); }
+    .status-msg.success { background: rgba(47,163,90,0.12); color: var(--success); border: 1px solid rgba(47,163,90,0.28); }
+    .status-msg.error { background: rgba(224,72,59,0.1); color: var(--error); border: 1px solid rgba(224,72,59,0.25); }
 
     /* Loading spinner */
     .spinner {
-      width: 32px; height: 32px;
-      border: 3px solid rgba(255,255,255,0.2);
-      border-top-color: var(--white);
+      width: 34px; height: 34px;
+      border: 3px solid rgba(46,155,224,0.2);
+      border-top-color: var(--brand);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -210,20 +225,20 @@
       text-align: center; opacity: 0;
       animation: fadeUp 0.6s ease forwards;
     }
-    .error-icon { font-size: 64px; margin-bottom: 16px; }
-    .error-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-    .error-text { color: var(--gray-400); font-size: 15px; }
+    .error-icon { font-size: 60px; margin-bottom: 14px; }
+    .error-title { font-size: 21px; font-weight: 800; margin-bottom: 8px; color: var(--ink); }
+    .error-text { color: var(--muted); font-size: 15px; line-height: 1.5; }
 
     /* Footer */
     .footer {
-      color: var(--gray-600); font-size: 12px; text-align: center;
-      opacity: 0; animation: fadeUp 0.6s ease 0.7s forwards;
+      color: #9AA5B2; font-size: 12px; text-align: center;
+      opacity: 0; animation: fadeUp 0.6s ease 0.6s forwards;
     }
-    .footer a { color: var(--blue); text-decoration: none; }
+    .footer a { color: var(--brand); text-decoration: none; font-weight: 600; }
 
     /* Loading state */
     .loading-state { text-align: center; opacity: 0; animation: fadeIn 0.4s ease forwards; }
-    .loading-title { font-size: 16px; color: var(--gray-400); margin-top: 16px; }
+    .loading-title { font-size: 16px; color: var(--muted); margin-top: 16px; }
 
     /* Animations */
     @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
@@ -231,25 +246,27 @@
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes ring { 0%,100% { transform: rotate(0); } 20% { transform: rotate(15deg); } 40% { transform: rotate(-15deg); } 60% { transform: rotate(10deg); } 80% { transform: rotate(-10deg); } }
+    @keyframes halo { 0%,100% { transform: scale(0.9); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 0.9; } }
     .ring-anim { animation: ring 0.5s ease; }
 
     @media (max-width: 380px) {
-      .ring-btn, .ring-btn-wrapper { width: 170px; height: 170px; }
-      .ring-btn-emoji { font-size: 42px; }
+      .ring-btn-wrapper { width: 180px; height: 180px; }
+      .ring-btn { width: 160px; height: 160px; }
+      .ring-btn-emoji { font-size: 48px; }
     }
 
     /* ─── Botón secundario videollamada ─────────────────────────────────── */
     .video-btn {
       width: 100%; height: 54px;
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      background: rgba(0,122,255,0.12);
-      border: 1px solid rgba(0,122,255,0.4);
-      border-radius: 14px; color: var(--white);
+      background: var(--white);
+      border: 1.5px solid var(--brand);
+      border-radius: 14px; color: var(--brand);
       font-size: 15px; font-weight: 700; font-family: var(--font);
       cursor: pointer; transition: background 0.2s, transform 0.1s;
       -webkit-user-select: none; user-select: none;
     }
-    .video-btn:hover { background: rgba(0,122,255,0.2); }
+    .video-btn:hover { background: rgba(46,155,224,0.08); }
     .video-btn:active { transform: scale(0.97); }
     .video-btn-icon { font-size: 20px; }
 
@@ -1309,7 +1326,7 @@ function _ringDoorbell() {
 function render() {
   if (window.__cancelWatchdog) window.__cancelWatchdog();
   var app = document.getElementById('app');
-  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          <div class=\"house-card\">\n            ".concat(casa.foto_fachada ? "<img src=\"".concat(casa.foto_fachada, "\" alt=\"Fachada\" class=\"house-photo\" />") : "<div class=\"house-photo-placeholder\">\n                  <span class=\"house-photo-placeholder-icon\">\uD83C\uDFE0</span>\n                  <span class=\"house-photo-placeholder-text\">Casa de ".concat(escapeHtml(casa.nombreCompleto), "</span>\n                </div>"), "\n            <div class=\"house-info\">\n              <div class=\"house-owner\">").concat(escapeHtml(casa.nombreCompleto), "</div>\n              ").concat(casa.direccion ? "<div class=\"house-address\">\uD83D\uDCCD ".concat(escapeHtml(casa.direccion), "</div>") : '', "\n            </div>\n          </div>\n\n          <div class=\"name-section\">\n            <label class=\"name-label\" for=\"visitor-name\">Tu nombre (opcional)</label>\n            <input\n              type=\"text\" id=\"visitor-name\"\n              class=\"name-input\"\n              placeholder=\"\xBFC\xF3mo te llamas?\"\n              maxlength=\"60\"\n              autocomplete=\"name\"\n            />\n          </div>\n\n          <div class=\"ring-section\">\n            <div class=\"ring-btn-wrapper\">\n              <div class=\"ring-btn-glow\"></div>\n              <button class=\"ring-btn\" id=\"ring-btn\" onclick=\"ringDoorbell()\" aria-label=\"Tocar timbre\">\n                <span class=\"ring-btn-emoji\">\uD83D\uDD14</span>\n                <span class=\"ring-btn-text\">Tocar Timbre</span>\n              </button>\n            </div>\n            <p class=\"ring-hint\" id=\"ring-hint\">Toca el bot\xF3n para avisar que est\xE1s en la puerta</p>\n          </div>\n\n          <button class=\"video-btn\" id=\"video-btn\" onclick=\"startVideoCall()\">\n            <span class=\"video-btn-icon\">\uD83D\uDCF9</span>\n            <span>Iniciar videollamada</span>\n          </button>\n\n          <div class=\"status-msg\" id=\"status-msg\"></div>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          <div class=\"house-card\">\n            ".concat(casa.foto_fachada ? "<img src=\"".concat(casa.foto_fachada, "\" alt=\"Fachada\" class=\"house-photo\" />") : "<div class=\"house-photo-placeholder\">\n                  <span class=\"house-photo-placeholder-icon\">\uD83C\uDFE0</span>\n                  <span class=\"house-photo-placeholder-text\">Casa de ".concat(escapeHtml(casa.nombreCompleto), "</span>\n                </div>"), "\n            <div class=\"house-info\">\n              <div class=\"house-info-label\">Timbre de</div>\n              <div class=\"house-owner\">").concat(escapeHtml(casa.nombreCompleto), "</div>\n              ").concat(casa.direccion ? "<div class=\"house-address\">\uD83D\uDCCD ".concat(escapeHtml(casa.direccion), "</div>") : '', "\n            </div>\n          </div>\n\n          <div class=\"name-section\">\n            <label class=\"name-label\" for=\"visitor-name\">Tu nombre (opcional)</label>\n            <input\n              type=\"text\" id=\"visitor-name\"\n              class=\"name-input\"\n              placeholder=\"\xBFC\xF3mo te llamas?\"\n              maxlength=\"60\"\n              autocomplete=\"name\"\n            />\n          </div>\n\n          <div class=\"ring-section\">\n            <div class=\"ring-btn-wrapper\">\n              <div class=\"ring-btn-glow\"></div>\n              <button class=\"ring-btn\" id=\"ring-btn\" onclick=\"ringDoorbell()\" aria-label=\"Tocar timbre\">\n                <span class=\"ring-btn-emoji\">\uD83D\uDD14</span>\n                <span class=\"ring-btn-text\">Tocar Timbre</span>\n              </button>\n            </div>\n            <p class=\"ring-hint\" id=\"ring-hint\">Toca el bot\xF3n para avisar que est\xE1s en la puerta</p>\n          </div>\n\n          <button class=\"video-btn\" id=\"video-btn\" onclick=\"startVideoCall()\">\n            <span class=\"video-btn-icon\">\uD83D\uDCF9</span>\n            <span>Iniciar videollamada</span>\n          </button>\n\n          <div class=\"status-msg\" id=\"status-msg\"></div>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
   var btn = document.getElementById('ring-btn');
   var glow = btn && btn.previousElementSibling;
   if (btn && glow) {
