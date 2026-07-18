@@ -45,9 +45,36 @@
     <div id="root"></div>
     <script>
       // El SW solo tiene sentido en contexto seguro (https o localhost).
+      // Auto-actualización: al detectar un SW nuevo instalado, recargamos una
+      // sola vez para tomar el deploy nuevo. Sin esto, iOS queda clavado en la
+      // versión vieja hasta que el usuario borra la app a mano.
       if ('serviceWorker' in navigator) {
+        var yaRecargo = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (yaRecargo) return;
+          yaRecargo = true;
+          window.location.reload();
+        });
         window.addEventListener('load', function () {
-          navigator.serviceWorker.register('/sw.js').catch(function (err) {
+          navigator.serviceWorker.register('/sw.js').then(function (reg) {
+            // Chequear si hay versión nueva apenas carga y cada vez que vuelve
+            // a foco (clave en el PWA de iOS, que no chequea solo).
+            reg.update();
+            document.addEventListener('visibilitychange', function () {
+              if (document.visibilityState === 'visible') reg.update();
+            });
+            reg.addEventListener('updatefound', function () {
+              var nuevo = reg.installing;
+              if (!nuevo) return;
+              nuevo.addEventListener('statechange', function () {
+                // Hay un SW nuevo instalado y ya había uno controlando: el
+                // controllerchange (por skipWaiting) disparará la recarga.
+                if (nuevo.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('S-Doorbell: versión nueva disponible, actualizando…');
+                }
+              });
+            });
+          }).catch(function (err) {
             console.warn('SW no registrado:', err);
           });
         });

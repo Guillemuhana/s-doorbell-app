@@ -10,6 +10,7 @@ import { suscribirWebPush } from '../utils/webPush';
 import { reproducirTimbre } from '../utils/doorbellSound';
 import Logo from '../components/Logo';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
+import { APP_VERSION } from '../constants/version';
 
 const Row = ({ icon, label, subtitle, onPress, danger }) => (
   <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
@@ -97,7 +98,7 @@ const ProfileScreen = ({ navigation }) => {
 
         <View style={styles.footer}>
           <Logo size="sm" />
-          <Text style={styles.version}>v1.0.0</Text>
+          <Text style={styles.version}>{APP_VERSION}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
