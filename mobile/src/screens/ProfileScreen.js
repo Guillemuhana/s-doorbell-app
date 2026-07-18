@@ -1,11 +1,13 @@
 // src/screens/ProfileScreen.js — tab Perfil
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { notificacionesAPI } from '../utils/api';
+import { suscribirWebPush } from '../utils/webPush';
+import { reproducirTimbre } from '../utils/doorbellSound';
 import Logo from '../components/Logo';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
@@ -37,6 +39,27 @@ const ProfileScreen = ({ navigation }) => {
     catch { Alert.alert('Error', 'No se pudo enviar la notificación.'); }
   };
 
+  // Web (PWA): activar notificaciones con la app cerrada (Web Push).
+  const activarNotificaciones = async () => {
+    const estado = await suscribirWebPush();
+    const mensajes = {
+      'ok': ['✅ Listo', 'Vas a recibir el timbre aunque la app esté cerrada.\n\nEn iPhone suena con el sonido del sistema (no el timbre propio) y no puede sonar en silencio ni en modo Concentración.'],
+      'no-instalado': ['Agregá la app a tu pantalla', 'Para recibir notificaciones con la app cerrada, primero agregá S-Doorbell a la pantalla de inicio: en Safari, tocá Compartir → "Agregar a pantalla de inicio". Después abrila desde el ícono.'],
+      'permiso-denegado': ['Permiso denegado', 'Activá las notificaciones desde Ajustes → Notificaciones → S-Doorbell.'],
+      'no-soportado': ['No disponible', 'Este dispositivo o navegador no permite notificaciones web.'],
+      'error': ['Error', 'No se pudo activar. Probá de nuevo en un momento.'],
+    };
+    const [titulo, cuerpo] = mensajes[estado] || mensajes['error'];
+    Alert.alert(titulo, cuerpo);
+  };
+
+  // Reproduce el timbre al instante (el toque cuenta como gesto → desbloquea el
+  // audio de iOS). Sirve para confirmar que el sonido funciona.
+  const probarSonido = () => {
+    reproducirTimbre();
+    Alert.alert('🔔 Timbre', 'Si no sonó, revisá que el interruptor de silencio del costado del teléfono NO esté en naranja, y que el volumen esté arriba.');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
@@ -59,8 +82,14 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.card}>
           <Row icon="account-outline" label="Editar perfil" subtitle="Nombre, email, teléfono, contraseña" onPress={() => navigation.navigate('EditProfile')} />
           <Row icon="history" label="Historial de timbrazos" onPress={() => navigation.navigate('Notifications')} />
-          <Row icon="bell-outline" label="Probar notificación" onPress={probarNotificacion} />
         </View>
+
+        {Platform.OS === 'web' && (
+          <View style={styles.card}>
+            <Row icon="bell-ring-outline" label="Activar notificaciones" subtitle="Recibir el timbre con la app cerrada" onPress={activarNotificaciones} />
+            <Row icon="volume-high" label="Probar sonido" subtitle="Escuchar cómo suena el timbre" onPress={probarSonido} />
+          </View>
+        )}
 
         <View style={styles.card}>
           <Row icon="logout" label="Cerrar sesión" danger onPress={cerrarSesion} />
