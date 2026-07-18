@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants/theme';
 import RingWatcher from '../components/RingWatcher';
 import { navigationRef } from './navigationRef';
+import { getPendingInvite } from '../utils/pendingInvite';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -23,6 +24,7 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import VisitorTestScreen from '../screens/VisitorTestScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import CallScreen from '../screens/CallScreen';
+import AcceptInviteScreen from '../screens/AcceptInviteScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -76,6 +78,11 @@ const MainStack = () => (
       component={CallScreen}
       options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'fade' }}
     />
+    <Stack.Screen
+      name="AcceptInvite"
+      component={AcceptInviteScreen}
+      options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+    />
   </Stack.Navigator>
 );
 
@@ -93,6 +100,24 @@ const navTheme = {
 
 const AppNavigator = () => {
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Al autenticarse, si quedó una invitación pendiente (llegó por link
+  // /invitacion/:token), abrir la pantalla para aceptarla o rechazarla.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelado = false;
+    (async () => {
+      const token = await getPendingInvite();
+      if (!token || cancelado) return;
+      const abrir = () => {
+        if (navigationRef.isReady()) navigationRef.navigate('AcceptInvite', { token });
+        else setTimeout(abrir, 100);
+      };
+      abrir();
+    })();
+    return () => { cancelado = true; };
+  }, [isAuthenticated]);
+
   if (isLoading) return <LoadingScreen />;
 
   return (

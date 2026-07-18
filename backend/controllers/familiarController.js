@@ -59,7 +59,9 @@ const crearInvitacion = async (req, res, next) => {
       .select().single();
     if (error) throw error;
 
-    const base = process.env.VISITOR_BASE_URL?.replace('/visit', '') || '';
+    // El link debe abrir el PWA (la app del residente), NO el backend. La app
+    // maneja /invitacion/:token: muestra la invitación y la acepta tras login.
+    const base = process.env.APP_BASE_URL || process.env.VISITOR_BASE_URL?.replace('/visit', '') || '';
     res.status(201).json({
       success: true,
       invitacion: mapInvitacion(inv),

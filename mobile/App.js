@@ -4,10 +4,15 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { addNotificationResponseListener, clearBadge } from './src/utils/notifications';
+import { capturarInviteDeURL } from './src/utils/pendingInvite';
 import * as SplashScreen from 'expo-splash-screen';
 
 // Keep splash visible while loading
 SplashScreen.preventAutoHideAsync();
+
+// Capturar el token de invitación de la URL (/invitacion/:token) ANTES de que
+// resuelva la sesión, así queda guardado aunque el familiar deba loguearse.
+capturarInviteDeURL();
 
 export default function App() {
   useEffect(() => {
