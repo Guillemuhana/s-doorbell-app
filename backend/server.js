@@ -24,6 +24,7 @@ const direccionRoutes = require('./routes/direcciones');
 const timbreRoutes = require('./routes/timbres');
 const invitacionRoutes = require('./routes/invitaciones');
 const callRoutes = require('./routes/calls');
+const pushRoutes = require('./routes/push');
 
 const app = express();
 
@@ -136,6 +137,7 @@ app.use('/api/invitaciones', invitacionRoutes);
 app.use('/api/visitor', ringLimiter, visitorRoutes);
 app.use('/api/calls/start', callStartLimiter);
 app.use('/api/calls', callLimiter, callRoutes);
+app.use('/api/push', pushRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

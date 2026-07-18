@@ -42,6 +42,13 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
 };
 
+// ─── Web Push API (PWA) ───────────────────────────────────────────────────────
+export const pushAPI = {
+  getVapidKey: () => api.get('/push/vapid-public-key'),
+  subscribe: (subscription) => api.post('/push/subscribe', { subscription }),
+  unsubscribe: () => api.post('/push/unsubscribe'),
+};
+
 // ─── Usuario API ──────────────────────────────────────────────────────────────
 export const usuarioAPI = {
   get: (id) => api.get(`/usuarios/${id}`),

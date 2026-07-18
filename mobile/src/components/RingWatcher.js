@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { eventosAPI, callsAPI } from '../utils/api';
 import { scheduleLocalNotification, addNotificationResponseListener } from '../utils/notifications';
 import { reproducirTimbre, armarDesbloqueoDeAudio } from '../utils/doorbellSound';
+import { suscribirWebPush, soportaWebPush } from '../utils/webPush';
 import { navigate } from '../navigation/navigationRef';
 
 const POLL_MS = 7000;
@@ -28,6 +29,29 @@ export default function RingWatcher() {
   // En web, habilita el audio en el primer toque del usuario (requisito de iOS).
   useEffect(() => {
     if (isAuthenticated) armarDesbloqueoDeAudio();
+  }, [isAuthenticated]);
+
+  // En web (PWA), suscribir a Web Push para recibir el timbre con la app
+  // cerrada. iOS exige que el pedido de permiso salga de un gesto del usuario,
+  // así que lo disparamos en el primer toque.
+  useEffect(() => {
+    if (!isAuthenticated || !soportaWebPush()) return;
+    let hecho = false;
+    const intentar = () => {
+      if (hecho) return;
+      hecho = true;
+      quitar();
+      suscribirWebPush().catch(() => {});
+    };
+    const quitar = () => {
+      window.removeEventListener('touchend', intentar);
+      window.removeEventListener('mousedown', intentar);
+      window.removeEventListener('keydown', intentar);
+    };
+    window.addEventListener('touchend', intentar);
+    window.addEventListener('mousedown', intentar);
+    window.addEventListener('keydown', intentar);
+    return quitar;
   }, [isAuthenticated]);
 
   // ─── Timbrazos + videollamadas entrantes (polling) ─────────────────────────

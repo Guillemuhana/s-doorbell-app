@@ -1,6 +1,7 @@
 // controllers/visitorController.js
 const { getSupabase } = require('../config/supabase');
 const { sendRingNotification } = require('../services/pushNotificationService');
+const { sendWebPush, isWebPushSubscription } = require('../services/webPushService');
 const { distanciaMetros, UMBRAL_VERIFICADO } = require('../utils/geo');
 const logger = require('../config/logger');
 
@@ -78,17 +79,35 @@ const ringDoorbell = async (req, res, next) => {
       .eq('direccion_id', direccion.id).eq('estado', 'activo');
 
     let enviados = 0;
+    const nombreVisitante = visitorName?.trim() || null;
+    const address = `${direccion.nombre} · ${timbre.nombre}`;
     await Promise.all((ms || []).filter((m) => m.usuario && m.usuario.push_token).map(async (m) => {
-      const result = await sendRingNotification({
-        pushToken: m.usuario.push_token,
-        ownerName: `${m.usuario.nombre} ${m.usuario.apellido}`,
-        visitorName: visitorName?.trim() || null,
-        address: `${direccion.nombre} · ${timbre.nombre}`,
-      });
-      if (result.success) enviados += 1;
-      if (result.tokenInvalid) {
-        await sb.from('usuarios').update({ push_token: null }).eq('id', m.usuario.id);
-        logger.warn(`Cleared invalid pushToken for user ${m.usuario.id}`);
+      const token = m.usuario.push_token;
+      // El push_token puede ser una suscripción Web Push (PWA, JSON) o un token
+      // FCM legacy. Se elige el canal según el formato.
+      if (isWebPushSubscription(token)) {
+        const result = await sendWebPush(token, {
+          title: '🔔 ¡Timbre!',
+          body: `${nombreVisitante || 'Alguien'} está en tu puerta · ${direccion.nombre}`,
+          data: { type: 'DOORBELL_RING', address, visitorName: nombreVisitante || '' },
+        });
+        if (result.success) enviados += 1;
+        if (result.gone) {
+          await sb.from('usuarios').update({ push_token: null }).eq('id', m.usuario.id);
+          logger.warn(`Suscripción Web Push expirada, limpiada: user ${m.usuario.id}`);
+        }
+      } else {
+        const result = await sendRingNotification({
+          pushToken: token,
+          ownerName: `${m.usuario.nombre} ${m.usuario.apellido}`,
+          visitorName: nombreVisitante,
+          address,
+        });
+        if (result.success) enviados += 1;
+        if (result.tokenInvalid) {
+          await sb.from('usuarios').update({ push_token: null }).eq('id', m.usuario.id);
+          logger.warn(`Cleared invalid pushToken for user ${m.usuario.id}`);
+        }
       }
     }));
 
