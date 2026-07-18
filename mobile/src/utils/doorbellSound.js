@@ -1,19 +1,31 @@
 // src/utils/doorbellSound.js
-// Sonido de timbre para el PWA (web). Se sintetiza un "din-don" con Web Audio,
-// así no depende de ningún archivo de audio.
+// Sonido de timbre para el PWA (web). Reproduce el archivo real
+// /timbretimbrecasa.mp3 (está en mobile/public, Expo lo copia a la raíz web).
+// Si por lo que sea el archivo no puede sonar, cae a un "din-don" sintetizado.
 //
-// iOS/Safari NO deja reproducir audio "por las suyas": el AudioContext arranca
-// suspendido y sólo se puede reanudar DENTRO de un gesto del usuario (un toque).
-// Como el timbre suena por un timer (no por un toque), hay que desbloquear el
-// audio en el primer toque que haga el usuario en la app. Por eso
-// `armarDesbloqueoDeAudio()` engancha un listener de un solo uso.
+// iOS/Safari NO deja reproducir audio "por las suyas": hay que desbloquearlo
+// DENTRO de un gesto del usuario (un toque). Como el timbre suena por un timer
+// (no por un toque), se desbloquea en el primer toque que el usuario haga en la
+// app. Por eso `armarDesbloqueoDeAudio()` engancha un listener de un solo uso.
 import { Platform } from 'react-native';
 
 const esWeb = Platform.OS === 'web';
+const ARCHIVO = '/timbretimbrecasa.mp3';
 
-let ctx = null;
+let audio = null;         // HTMLAudioElement con el mp3
 let desbloqueado = false;
+let ctx = null;           // Web Audio (solo para el respaldo sintetizado)
 
+function getAudio() {
+  if (!esWeb) return null;
+  if (!audio && typeof Audio !== 'undefined') {
+    audio = new Audio(ARCHIVO);
+    audio.preload = 'auto';
+  }
+  return audio;
+}
+
+// ─── Respaldo: "din-don" sintetizado si el mp3 no puede sonar ────────────────
 function getCtx() {
   if (!esWeb) return null;
   if (!ctx) {
@@ -23,14 +35,11 @@ function getCtx() {
   }
   return ctx;
 }
-
-// Un golpe de campana: una nota con ataque rápido y caída suave.
 function campana(context, freq, inicio, duracion, volumen) {
   const osc = context.createOscillator();
   const gain = context.createGain();
   osc.type = 'sine';
   osc.frequency.value = freq;
-  // Envolvente: sube de golpe y decae exponencial, como un timbre real.
   gain.gain.setValueAtTime(0.0001, inicio);
   gain.gain.exponentialRampToValueAtTime(volumen, inicio + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.0001, inicio + duracion);
@@ -39,40 +48,55 @@ function campana(context, freq, inicio, duracion, volumen) {
   osc.start(inicio);
   osc.stop(inicio + duracion + 0.02);
 }
-
-// "Din-don" clásico (dos notas descendentes), repetido dos veces.
-export function reproducirTimbre() {
+function reproducirSintetizado() {
   const context = getCtx();
   if (!context) return;
   if (context.state === 'suspended') context.resume().catch(() => {});
   const t = context.currentTime;
   const V = 0.35;
-  // din-don
-  campana(context, 660, t + 0.00, 0.55, V);   // din (mi)
-  campana(context, 523, t + 0.45, 0.75, V);   // don (do)
-  // repite
+  campana(context, 660, t + 0.00, 0.55, V);
+  campana(context, 523, t + 0.45, 0.75, V);
   campana(context, 660, t + 1.30, 0.55, V);
   campana(context, 523, t + 1.75, 0.75, V);
 }
 
-// Desbloqueo de audio: en el primer toque del usuario reanudamos el contexto y
-// reproducimos un buffer silencioso, que es lo que iOS exige para habilitar el
-// audio programático posterior.
+// ─── Reproducir el timbre ────────────────────────────────────────────────────
+export function reproducirTimbre() {
+  if (!esWeb) return;
+  const a = getAudio();
+  if (!a) { reproducirSintetizado(); return; }
+  try {
+    a.currentTime = 0;
+    const p = a.play();
+    // Si el navegador rechaza la reproducción (no desbloqueado, error de red…),
+    // caemos al sonido sintetizado para no quedarnos mudos.
+    if (p && typeof p.catch === 'function') p.catch(() => reproducirSintetizado());
+  } catch {
+    reproducirSintetizado();
+  }
+}
+
+// ─── Desbloqueo de audio en el primer gesto (requisito de iOS) ───────────────
 export function armarDesbloqueoDeAudio() {
   if (!esWeb || desbloqueado) return;
 
   const desbloquear = () => {
+    // Primar el <audio>: reproducir en silencio y pausar, dentro del gesto.
+    const a = getAudio();
+    if (a) {
+      const volPrevio = a.volume;
+      try {
+        a.volume = 0;
+        const p = a.play();
+        const finalizar = () => { a.pause(); a.currentTime = 0; a.volume = volPrevio; };
+        if (p && typeof p.then === 'function') p.then(finalizar).catch(() => { a.volume = volPrevio; });
+        else finalizar();
+      } catch { a.volume = volPrevio; }
+    }
+    // Y reanudar el AudioContext del respaldo, por las dudas.
     const context = getCtx();
-    if (!context) return;
-    if (context.state === 'suspended') context.resume().catch(() => {});
-    // buffer mudo de 1 frame
-    try {
-      const buf = context.createBuffer(1, 1, 22050);
-      const src = context.createBufferSource();
-      src.buffer = buf;
-      src.connect(context.destination);
-      src.start(0);
-    } catch { /* no pasa nada */ }
+    if (context && context.state === 'suspended') context.resume().catch(() => {});
+
     desbloqueado = true;
     quitar();
   };
@@ -84,8 +108,8 @@ export function armarDesbloqueoDeAudio() {
     window.removeEventListener('keydown', desbloquear);
   };
 
-  window.addEventListener('touchstart', desbloquear, { once: false });
-  window.addEventListener('touchend', desbloquear, { once: false });
-  window.addEventListener('mousedown', desbloquear, { once: false });
-  window.addEventListener('keydown', desbloquear, { once: false });
+  window.addEventListener('touchstart', desbloquear);
+  window.addEventListener('touchend', desbloquear);
+  window.addEventListener('mousedown', desbloquear);
+  window.addEventListener('keydown', desbloquear);
 }
