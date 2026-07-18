@@ -2,7 +2,7 @@
 //
 // Regla de oro: NUNCA cachear la API. Un timbre que muestra datos viejos es
 // peor que uno que no muestra nada. Solo cacheamos el shell estático.
-const VERSION = 'sdoorbell-v4';
+const VERSION = 'sdoorbell-v5';
 const SHELL = ['/', '/index.html', '/manifest.json', '/icons/pwa-192.png', '/icons/pwa-512.png'];
 
 self.addEventListener('install', (event) => {

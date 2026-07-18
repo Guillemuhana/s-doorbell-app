@@ -158,8 +158,8 @@ const HomeScreen = ({ navigation }) => {
             <ActionTile icon="account-group" label="Familiares" sub={`${principal.familiaresCount ?? 1} usuario${(principal.familiaresCount ?? 1) === 1 ? '' : 's'}`}
               onPress={() => navigation.navigate('InviteFamily', { direccionId: principal._id })} />
             <ActionTile icon="clock-outline" label="Historial" sub="Ver actividad" onPress={irHistorial} />
-            <ActionTile icon="cog-outline" label="Ajustes" sub="Configurar"
-              onPress={() => navigation.navigate('AddAddress', { direccionId: principal._id })} />
+            <ActionTile icon="cog-outline" label="Ajustes" sub="Mi perfil"
+              onPress={() => navigation.getParent()?.navigate('PerfilTab', { screen: 'Profile' })} />
           </View>
         )}
       </ScrollView>
