@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { eventosAPI, callsAPI } from '../utils/api';
 import { scheduleLocalNotification, addNotificationResponseListener } from '../utils/notifications';
 import { reproducirTimbre, armarDesbloqueoDeAudio } from '../utils/doorbellSound';
-import { suscribirWebPush, soportaWebPush } from '../utils/webPush';
+import { suscribirWebPush, soportaWebPush, refrescarWebPush } from '../utils/webPush';
 import { navigate } from '../navigation/navigationRef';
 
 const POLL_MS = 7000;
@@ -54,6 +54,17 @@ export default function RingWatcher() {
     window.addEventListener('mousedown', intentar);
     window.addEventListener('keydown', intentar);
     return quitar;
+  }, [isAuthenticated]);
+
+  // Refrescar la suscripción Web Push cada vez que la app vuelve al primer plano.
+  // En iOS la suscripción puede vencer; si no se renueva, dejan de llegar los
+  // timbres (síntoma: "a veces suena, a veces no"). Solo actúa si ya hay permiso.
+  useEffect(() => {
+    if (!isAuthenticated || !soportaWebPush() || typeof document === 'undefined') return;
+    const alVolver = () => { if (document.visibilityState === 'visible') refrescarWebPush(); };
+    refrescarWebPush();
+    document.addEventListener('visibilitychange', alVolver);
+    return () => document.removeEventListener('visibilitychange', alVolver);
   }, [isAuthenticated]);
 
   // ─── Timbrazos + videollamadas entrantes (polling) ─────────────────────────

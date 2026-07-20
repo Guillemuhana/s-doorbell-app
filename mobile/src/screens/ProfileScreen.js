@@ -1,12 +1,13 @@
 // src/screens/ProfileScreen.js — tab Perfil
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { notificacionesAPI } from '../utils/api';
-import { suscribirWebPush } from '../utils/webPush';
+import { suscribirWebPush, estadoWebPush } from '../utils/webPush';
 import { reproducirTimbre } from '../utils/doorbellSound';
 import Logo from '../components/Logo';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
@@ -25,8 +26,27 @@ const Row = ({ icon, label, subtitle, onPress, danger }) => (
   </TouchableOpacity>
 );
 
+// Cómo se muestra cada estado de las notificaciones nativas (Web Push / PWA).
+const ESTADO_PUSH = {
+  'ok': { icon: 'bell-check', color: '#2FA35A', label: 'Notificaciones activas', sub: 'Te llega el timbre con la app cerrada.' },
+  'no-instalado': { icon: 'cellphone-arrow-down', color: '#E0A82E', label: 'Agregá la app a tu pantalla', sub: 'Safari → Compartir → "Agregar a inicio". Después abrila desde el ícono.' },
+  'permiso-pendiente': { icon: 'bell-alert-outline', color: '#E0A82E', label: 'Falta activar notificaciones', sub: 'Tocá acá para activarlas.' },
+  'sin-suscripcion': { icon: 'bell-alert-outline', color: '#E0A82E', label: 'Falta activar notificaciones', sub: 'Tocá acá para activarlas.' },
+  'permiso-denegado': { icon: 'bell-off', color: '#E0483B', label: 'Notificaciones bloqueadas', sub: 'Activalas en Ajustes → Notificaciones → S-Doorbell.' },
+  'no-soportado': { icon: 'bell-off-outline', color: '#9AA5B2', label: 'No disponible en este navegador', sub: 'Abrí la app instalada en la pantalla de inicio.' },
+};
+
 const ProfileScreen = ({ navigation }) => {
   const { usuario, logout } = useAuth();
+  const [pushEstado, setPushEstado] = useState(null);
+
+  // Recalcula el estado de notificaciones cada vez que se entra al Perfil.
+  const refrescarEstado = useCallback(async () => {
+    if (Platform.OS !== 'web') return;
+    try { setPushEstado(await estadoWebPush()); } catch { setPushEstado(null); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { refrescarEstado(); }, [refrescarEstado]));
 
   const cerrarSesion = () => {
     Alert.alert('Cerrar sesión', '¿Seguro que querés salir?', [
@@ -59,6 +79,7 @@ const ProfileScreen = ({ navigation }) => {
     };
     const [titulo, cuerpo] = mensajes[estado] || mensajes['error'];
     Alert.alert(titulo, cuerpo);
+    refrescarEstado();
   };
 
   // Reproduce el timbre al instante (el toque cuenta como gesto → desbloquea el
@@ -92,8 +113,25 @@ const ProfileScreen = ({ navigation }) => {
           <Row icon="history" label="Historial de timbrazos" onPress={() => navigation.navigate('Notifications')} />
         </View>
 
+        {Platform.OS === 'web' && pushEstado && pushEstado !== 'ok' && (
+          <TouchableOpacity style={[styles.statusBanner, { borderColor: (ESTADO_PUSH[pushEstado] || {}).color }]} onPress={activarNotificaciones} activeOpacity={0.8}>
+            <MaterialCommunityIcons name={(ESTADO_PUSH[pushEstado] || {}).icon || 'bell-alert-outline'} size={22} color={(ESTADO_PUSH[pushEstado] || {}).color || COLORS.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusLabel, { color: (ESTADO_PUSH[pushEstado] || {}).color }]}>{(ESTADO_PUSH[pushEstado] || {}).label || 'Notificaciones'}</Text>
+              <Text style={styles.statusSub}>{(ESTADO_PUSH[pushEstado] || {}).sub || ''}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={18} color={COLORS.gray300} />
+          </TouchableOpacity>
+        )}
+
         {Platform.OS === 'web' && (
           <View style={styles.card}>
+            {pushEstado === 'ok' && (
+              <View style={styles.okRow}>
+                <MaterialCommunityIcons name="bell-check" size={18} color="#2FA35A" />
+                <Text style={styles.okText}>Notificaciones activas · te llega el timbre con la app cerrada</Text>
+              </View>
+            )}
             <Row icon="bell-ring-outline" label="Activar notificaciones" subtitle="Recibir el timbre con la app cerrada" onPress={activarNotificaciones} />
             <Row icon="bell-check-outline" label="Probar notificación" subtitle="Confirmá que llega con la app cerrada" onPress={probarNotificacion} />
             <Row icon="volume-high" label="Probar sonido" subtitle="Escuchar cómo suena el timbre" onPress={probarSonido} />
@@ -131,6 +169,19 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 1 },
   footer: { alignItems: 'center', marginTop: SPACING.xl, gap: SPACING.xs },
   version: { color: COLORS.textMuted, fontSize: FONT_SIZES.xs },
+  statusBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    padding: SPACING.base, marginBottom: SPACING.base,
+    borderWidth: 1.5,
+  },
+  statusLabel: { fontSize: FONT_SIZES.base, fontWeight: '800' },
+  statusSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 2, lineHeight: 16 },
+  okRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingHorizontal: SPACING.base, paddingTop: SPACING.md, paddingBottom: SPACING.xs,
+  },
+  okText: { flex: 1, fontSize: FONT_SIZES.xs, color: '#2FA35A', fontWeight: '600' },
 });
 
 export default ProfileScreen;

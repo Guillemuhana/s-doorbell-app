@@ -43,6 +43,41 @@ export function esPWAInstalado() {
  * mostrarle algo útil en la UI.
  *   'ok' | 'no-soportado' | 'no-instalado' | 'permiso-denegado' | 'error'
  */
+/**
+ * Estado actual de las notificaciones, SIN pedir permiso ni suscribir (para
+ * mostrarlo en la UI). Devuelve:
+ *   'ok' | 'no-soportado' | 'no-instalado' | 'permiso-pendiente'
+ *   | 'permiso-denegado' | 'sin-suscripcion'
+ */
+export async function estadoWebPush() {
+  if (!soportaWebPush()) return 'no-soportado';
+  if (!esPWAInstalado() && /iphone|ipad|ipod/i.test(navigator.userAgent)) return 'no-instalado';
+  if (Notification.permission === 'denied') return 'permiso-denegado';
+  if (Notification.permission !== 'granted') return 'permiso-pendiente';
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    return sub ? 'ok' : 'sin-suscripcion';
+  } catch {
+    return 'sin-suscripcion';
+  }
+}
+
+/**
+ * Re-suscribe en silencio si YA hay permiso concedido (sin molestar con
+ * diálogos). Sirve para refrescar la suscripción cada vez que se abre la app:
+ * en iOS la suscripción puede vencer y, si no se renueva, dejan de llegar los
+ * timbres. No hace nada si falta permiso o no está instalado.
+ */
+export async function refrescarWebPush() {
+  if (!soportaWebPush()) return;
+  if (!esPWAInstalado() && /iphone|ipad|ipod/i.test(navigator.userAgent)) return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    await suscribirWebPush();
+  } catch { /* noop */ }
+}
+
 export async function suscribirWebPush() {
   if (!soportaWebPush()) return 'no-soportado';
   // En iOS, sin estar instalado, ni siquiera se puede pedir permiso útilmente.
