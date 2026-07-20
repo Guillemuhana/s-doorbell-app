@@ -21,6 +21,20 @@ const InviteFamilyScreen = ({ route, navigation }) => {
   const [link, setLink] = useState(null);   // enlace ya creado
   const [copiado, setCopiado] = useState(false);
 
+  // Genera un enlace genérico para compartir, SIN pedir el email del familiar.
+  // Cualquiera que lo abra puede unirse (crear cuenta / iniciar sesión y aceptar).
+  const generarLink = async () => {
+    setLoading(true);
+    try {
+      const { data } = await direccionesAPI.invitar(direccionId, { rol: 'familiar' });
+      setLink(data.inviteUrl);
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.error || 'No se pudo generar el enlace.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const enviarInvitacion = async () => {
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
       return Alert.alert('Email inválido', 'Ingresá un email válido.');
@@ -115,11 +129,19 @@ const InviteFamilyScreen = ({ route, navigation }) => {
           </View>
         ) : !showForm ? (
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowForm(true)} activeOpacity={0.85}>
-              <Text style={styles.primaryBtnText}>Invitar familiares</Text>
+            <TouchableOpacity style={styles.primaryBtn} onPress={generarLink} disabled={loading} activeOpacity={0.85}>
+              {loading ? <ActivityIndicator color={COLORS.white} /> : (
+                <>
+                  <MaterialCommunityIcons name="link-variant" size={20} color={COLORS.white} />
+                  <Text style={styles.primaryBtnText}>Generar enlace para compartir</Text>
+                </>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.outlineBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Text style={styles.outlineBtnText}>Continuar sin invitar</Text>
+            <TouchableOpacity style={styles.outlineBtn} onPress={() => setShowForm(true)} activeOpacity={0.8}>
+              <Text style={styles.outlineBtnText}>Invitar por email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.linkBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Text style={styles.linkBtnText}>Continuar sin invitar</Text>
             </TouchableOpacity>
           </View>
         ) : (

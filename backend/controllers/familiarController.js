@@ -39,20 +39,25 @@ const crearInvitacion = async (req, res, next) => {
     if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede invitar.' });
 
     const { email, rol: rolInvitado } = req.body;
-    if (!email) return res.status(400).json({ error: 'El email del invitado es requerido.' });
-    const emailNorm = email.toLowerCase().trim();
+    // El email es OPCIONAL: si no viene, se genera un link genérico que cualquier
+    // familiar puede abrir para unirse (sin tener que tipear su email).
+    const emailNorm = email ? email.toLowerCase().trim() : '';
     const sb = getSupabase();
 
-    const { data: usuarioExistente } = await sb.from('usuarios').select('id').eq('email', emailNorm).maybeSingle();
-    if (usuarioExistente) {
-      const { data: yaMiembro } = await sb.from('memberships').select('id')
-        .eq('usuario_id', usuarioExistente.id).eq('direccion_id', req.params.id).maybeSingle();
-      if (yaMiembro) return res.status(400).json({ error: 'Esa persona ya es parte de la dirección.' });
-    }
+    // Los chequeos de "ya es miembro" / "ya hay invitación pendiente" solo aplican
+    // cuando se invita a un email concreto (el link genérico se puede regenerar).
+    if (emailNorm) {
+      const { data: usuarioExistente } = await sb.from('usuarios').select('id').eq('email', emailNorm).maybeSingle();
+      if (usuarioExistente) {
+        const { data: yaMiembro } = await sb.from('memberships').select('id')
+          .eq('usuario_id', usuarioExistente.id).eq('direccion_id', req.params.id).maybeSingle();
+        if (yaMiembro) return res.status(400).json({ error: 'Esa persona ya es parte de la dirección.' });
+      }
 
-    const { data: pendiente } = await sb.from('invitaciones').select('id')
-      .eq('direccion_id', req.params.id).eq('email', emailNorm).eq('estado', 'pendiente').maybeSingle();
-    if (pendiente) return res.status(400).json({ error: 'Ya existe una invitación pendiente para ese email.' });
+      const { data: pendiente } = await sb.from('invitaciones').select('id')
+        .eq('direccion_id', req.params.id).eq('email', emailNorm).eq('estado', 'pendiente').maybeSingle();
+      if (pendiente) return res.status(400).json({ error: 'Ya existe una invitación pendiente para ese email.' });
+    }
 
     const { data: inv, error } = await sb.from('invitaciones')
       .insert({ direccion_id: req.params.id, invitado_por: req.usuario._id, email: emailNorm, rol: rolInvitado === 'colaborador' ? 'colaborador' : 'familiar' })
