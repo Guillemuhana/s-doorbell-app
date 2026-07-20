@@ -79,6 +79,34 @@ const UnitDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  // Fija la ubicación de la casa (referencia para el geofence). El dueño lo hace
+  // estando EN su casa. Sin esto, "Exigir ubicación" solo pide compartir la
+  // ubicación pero no puede bloquear por distancia.
+  const fijarUbicacion = () => {
+    if (!esDueno) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return Alert.alert('No disponible', 'Fijá la ubicación desde la app web (PWA) en tu teléfono, estando en tu casa.');
+    }
+    Alert.alert('Fijar ubicación de tu casa', 'Asegurate de estar EN TU CASA ahora. Vamos a usar tu ubicación actual como referencia de la puerta.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Usar mi ubicación', onPress: () => {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              try {
+                await direccionesAPI.update(direccionId, { lat: pos.coords.latitude, lng: pos.coords.longitude });
+                Alert.alert('✅ Listo', 'Ubicación de tu casa guardada. Con "Exigir ubicación" activo, ahora solo se puede tocar el timbre parado en la puerta.');
+                fetchData();
+              } catch { Alert.alert('Error', 'No se pudo guardar la ubicación.'); }
+            },
+            () => Alert.alert('Sin ubicación', 'No pudimos obtener tu ubicación. Activá el GPS y el permiso de ubicación, y probá de nuevo.'),
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+          );
+        }
+      },
+    ]);
+  };
+
   const agregarTimbre = () => {
     if (!esDueno) return Alert.alert('Solo el dueño puede agregar timbres.');
     Alert.alert('Nuevo timbre', '¿Agregar un timbre "Puerta"?', [
@@ -194,7 +222,7 @@ const UnitDetailScreen = ({ route, navigation }) => {
                   <MaterialCommunityIcons name="map-marker-radius" size={18} color={t.modoGeo ? COLORS.primary : COLORS.gray400} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.geoTitle}>Exigir ubicación</Text>
-                    <Text style={styles.geoSub}>El visitante debe compartir su ubicación para tocar.</Text>
+                    <Text style={styles.geoSub}>Solo dejan tocar el timbre desde la puerta (evita que jodan de lejos).</Text>
                   </View>
                   <Switch
                     value={!!t.modoGeo}
@@ -203,6 +231,22 @@ const UnitDetailScreen = ({ route, navigation }) => {
                     thumbColor={COLORS.white}
                   />
                 </View>
+              )}
+              {esDueno && t.modoGeo && (
+                <TouchableOpacity style={styles.geoLocRow} onPress={fijarUbicacion} activeOpacity={0.8}>
+                  {direccion.lat != null && direccion.lng != null ? (
+                    <>
+                      <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.success} />
+                      <Text style={styles.geoLocOk}>Casa geolocalizada · el geofence está activo</Text>
+                      <Text style={styles.geoLocBtn}>Actualizar</Text>
+                    </>
+                  ) : (
+                    <>
+                      <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.warning} />
+                      <Text style={styles.geoLocWarn}>Fijá la ubicación de tu casa (estoy acá) para que funcione</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               )}
             </View>
           ))}
@@ -285,6 +329,16 @@ const styles = StyleSheet.create({
   },
   geoTitle: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text },
   geoSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 1 },
+  geoLocRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.background, borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border, borderTopWidth: 0,
+    borderTopLeftRadius: 0, borderTopRightRadius: 0, marginTop: -1,
+  },
+  geoLocOk: { flex: 1, fontSize: FONT_SIZES.xs, color: COLORS.success, fontWeight: '600' },
+  geoLocWarn: { flex: 1, fontSize: FONT_SIZES.xs, color: COLORS.warning, fontWeight: '600' },
+  geoLocBtn: { fontSize: FONT_SIZES.xs, color: COLORS.primaryDark, fontWeight: '700' },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: COLORS.brand, fontWeight: '800', fontSize: FONT_SIZES.md },
 });

@@ -1,4 +1,4 @@
 // Versión visible de la app. Subila con cada deploy para poder confirmar, a
 // simple vista en Perfil, qué build cargó el dispositivo (clave para saber si
 // el PWA se actualizó o quedó cacheado).
-export const APP_VERSION = 'v10 · 20/07';
+export const APP_VERSION = 'v11 · 20/07';

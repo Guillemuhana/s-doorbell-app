@@ -83,7 +83,21 @@ const ringDoorbell = async (req, res, next) => {
     let ubicacionVerificada = null;
     if (visitorLat !== null && visitorLng !== null && direccion.lat != null && direccion.lng != null) {
       distancia = distanciaMetros(visitorLat, visitorLng, direccion.lat, direccion.lng);
-      if (distancia !== null) ubicacionVerificada = distancia <= UMBRAL_VERIFICADO;
+      if (distancia !== null) {
+        ubicacionVerificada = distancia <= UMBRAL_VERIFICADO;
+        // Con "exigir ubicación" activo y la casa geolocalizada, se BLOQUEA tocar
+        // desde lejos: así el link no sirve para joder desde otro lado, solo
+        // funciona parado en la puerta. Se descuenta el margen de error del GPS
+        // (capado) para no rechazar a un visitante legítimo.
+        const margen = typeof accuracy === 'number' && accuracy > 0 ? Math.min(accuracy, 120) : 0;
+        if (timbre.modo_geo && (distancia - margen) > UMBRAL_VERIFICADO) {
+          return res.status(403).json({
+            error: 'Estás demasiado lejos de la puerta para tocar este timbre.',
+            lejos: true,
+            distanciaMetros: distancia,
+          });
+        }
+      }
     }
 
     // Notificar a todos los miembros con pushToken
