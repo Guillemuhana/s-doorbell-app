@@ -36,8 +36,15 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const probarNotificacion = async () => {
-    try { await notificacionesAPI.testNotification(); Alert.alert('✅', 'Notificación de prueba enviada.'); }
-    catch { Alert.alert('Error', 'No se pudo enviar la notificación.'); }
+    try {
+      await notificacionesAPI.testNotification();
+      Alert.alert(
+        '📩 Enviada',
+        'Bloqueá el teléfono o cerrá la app: en unos segundos debería llegar la notificación de prueba.\n\nSi no llega, tocá "Activar notificaciones" primero.'
+      );
+    } catch (e) {
+      Alert.alert('No se pudo', e?.response?.data?.error || 'No se pudo enviar la notificación de prueba.');
+    }
   };
 
   // Web (PWA): activar notificaciones con la app cerrada (Web Push).
@@ -88,6 +95,7 @@ const ProfileScreen = ({ navigation }) => {
         {Platform.OS === 'web' && (
           <View style={styles.card}>
             <Row icon="bell-ring-outline" label="Activar notificaciones" subtitle="Recibir el timbre con la app cerrada" onPress={activarNotificaciones} />
+            <Row icon="bell-check-outline" label="Probar notificación" subtitle="Confirmá que llega con la app cerrada" onPress={probarNotificacion} />
             <Row icon="volume-high" label="Probar sonido" subtitle="Escuchar cómo suena el timbre" onPress={probarSonido} />
           </View>
         )}

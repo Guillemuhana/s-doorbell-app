@@ -50,7 +50,7 @@ const login = async (req, res, next) => {
  */
 const register = async (req, res, next) => {
   try {
-    const { nombre, apellido, email, password, telefono, direccion } = req.body;
+    const { nombre, apellido, email, password, telefono, direccion, skipDireccion } = req.body;
     if (!nombre || !apellido || !email || !password) {
       return res.status(400).json({ error: 'Nombre, apellido, email y contraseña son requeridos.' });
     }
@@ -66,16 +66,21 @@ const register = async (req, res, next) => {
       .select().single();
     if (uErr) throw uErr;
 
-    // Dirección + membership (dueño) + timbre con QR
-    const { data: dir } = await sb.from('direcciones')
-      .insert({ owner_id: u.id, nombre: direccion?.trim() || 'Mi casa', tipo: 'Casa', direccion: direccion?.trim() || '' })
-      .select().single();
-    await sb.from('memberships').insert({ usuario_id: u.id, direccion_id: dir.id, rol: 'dueño' });
-    const { data: timbre } = await sb.from('timbres')
-      .insert({ direccion_id: dir.id, nombre: 'Puerta', tipo: 'Timbre particular' })
-      .select().single();
-    const qr = await generateQRDataURL(timbre.qr_id);
-    if (qr.success) await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
+    // Cuando el registro viene de aceptar una invitación de familiar (skipDireccion),
+    // NO se crea una dirección propia: la persona se va a unir a la dirección del
+    // dueño que la invitó. Así no queda una "Mi casa" vacía en su inicio.
+    if (!skipDireccion) {
+      // Dirección + membership (dueño) + timbre con QR
+      const { data: dir } = await sb.from('direcciones')
+        .insert({ owner_id: u.id, nombre: direccion?.trim() || 'Mi casa', tipo: 'Casa', direccion: direccion?.trim() || '' })
+        .select().single();
+      await sb.from('memberships').insert({ usuario_id: u.id, direccion_id: dir.id, rol: 'dueño' });
+      const { data: timbre } = await sb.from('timbres')
+        .insert({ direccion_id: dir.id, nombre: 'Puerta', tipo: 'Timbre particular' })
+        .select().single();
+      const qr = await generateQRDataURL(timbre.qr_id);
+      if (qr.success) await sb.from('timbres').update({ qr_image: qr.dataURL }).eq('id', timbre.id);
+    }
 
     const usuario = mapUsuario(u);
     res.status(201).json({ success: true, token: generateToken(u.id), usuario: publicUsuario(usuario) });

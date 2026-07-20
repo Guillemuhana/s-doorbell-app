@@ -93,20 +93,22 @@ const sendRingNotification = async ({ pushToken, ownerName, visitorName, address
  * Envía push de VIDEOLLAMADA ENTRANTE al residente.
  * Incluye el callId en data para que la app abra la pantalla de llamada.
  */
-const sendIncomingCallNotification = async ({ pushToken, ownerName, visitorName, address, callId }) => {
+const sendIncomingCallNotification = async ({ pushToken, ownerName, visitorName, address, callId, modo }) => {
   if (!pushToken) {
     return { success: false, error: 'No hay token de notificación registrado' };
   }
 
+  const esChat = modo === 'chat';
   const visitorLabel = visitorName || 'Alguien';
-  const title = '📹 Videollamada en tu puerta';
-  const body = `${visitorLabel} quiere hablar contigo`;
+  const title = esChat ? '💬 Mensaje en tu puerta' : '📹 Videollamada en tu puerta';
+  const body = esChat ? `${visitorLabel} quiere chatear contigo` : `${visitorLabel} quiere hablar contigo`;
 
   const message = {
     token: pushToken,
     notification: { title, body },
     data: {
       type: 'INCOMING_CALL',
+      modo: esChat ? 'chat' : 'video',
       callId: callId || '',
       visitorName: visitorName || '',
       address: address || '',

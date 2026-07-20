@@ -42,3 +42,5 @@ Thumbs.db
 # Mongo en memoria (binarios descargados)
 .cache/
 .mongodb-binaries/
+
+.vercel

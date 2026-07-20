@@ -64,11 +64,9 @@ const EventItem = ({ evento, onDelete, isDark }) => {
           )}
         </View>
       </View>
-      {evento.tipo === 'timbrazo' && (
-        <TouchableOpacity onPress={() => onDelete(evento._id)} style={styles.deleteBtn}>
-          <MaterialCommunityIcons name="trash-can-outline" size={20} color={mutedColor} />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity onPress={() => onDelete(evento._id)} style={styles.deleteBtn}>
+        <MaterialCommunityIcons name="trash-can-outline" size={20} color={mutedColor} />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -149,6 +147,24 @@ const NotificationsScreen = ({ navigation }) => {
     ]);
   };
 
+  const handleDeleteAll = () => {
+    if (!eventos.length) return;
+    const label = filter === 'timbrazo' ? 'los timbrazos' : 'los escaneos';
+    Alert.alert('Borrar todo', `¿Eliminar todo el historial de ${label}? No se puede deshacer.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Borrar todo', style: 'destructive', onPress: async () => {
+          try {
+            await eventosAPI.deleteAll(filter);
+            setEventos([]);
+            setHasMore(false);
+            fetchEventos(1, true);
+          } catch { Alert.alert('Error', 'No se pudo borrar el historial.'); }
+        }
+      }
+    ]);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -160,7 +176,9 @@ const NotificationsScreen = ({ navigation }) => {
             <MaterialCommunityIcons name="chevron-left" size={28} color={COLORS.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Historial</Text>
-          <View style={{ width: 32 }} />
+          <TouchableOpacity onPress={handleDeleteAll} disabled={!eventos.length} style={{ width: 32, alignItems: 'flex-end' }}>
+            <MaterialCommunityIcons name="trash-can-outline" size={24} color={eventos.length ? COLORS.white : 'rgba(255,255,255,0.4)'} />
+          </TouchableOpacity>
         </View>
 
         {stats && (

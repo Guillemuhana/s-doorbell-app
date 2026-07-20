@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ImageBackground, ActivityIndicator, Alert, RefreshControl,
+  ImageBackground, ActivityIndicator, Alert, RefreshControl, Switch,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { direccionesAPI } from '../utils/api';
+import { direccionesAPI, timbresAPI } from '../utils/api';
+import { buildImageFormData } from '../utils/imageUpload';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
 const CircleAction = ({ icon, label, active, onPress }) => (
@@ -52,13 +53,29 @@ const UnitDetailScreen = ({ route, navigation }) => {
     const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true, aspect: [16, 9] });
     if (result.canceled) return;
     const asset = result.assets[0];
-    const form = new FormData();
-    form.append('foto', { uri: asset.uri, name: 'foto.jpg', type: 'image/jpeg' });
     try {
+      const form = await buildImageFormData('foto', asset);
       await direccionesAPI.uploadFoto(direccionId, form);
       fetchData();
     } catch {
       Alert.alert('Error', 'No se pudo subir la foto.');
+    }
+  };
+
+  // Exigir ubicación (modo_geo): el visitante debe compartir su ubicación para
+  // poder tocar el timbre. Evita que timbren de lejos o al pasar escaneando.
+  const toggleGeo = async (timbre, valor) => {
+    if (!esDueno) return Alert.alert('Solo el dueño puede cambiar esto.');
+    // Optimista: reflejamos el cambio en pantalla mientras guarda.
+    setData((prev) => prev && {
+      ...prev,
+      timbres: prev.timbres.map((t) => (t._id === timbre._id ? { ...t, modoGeo: valor } : t)),
+    });
+    try {
+      await timbresAPI.update(timbre._id, { modoGeo: valor });
+    } catch {
+      Alert.alert('Error', 'No se pudo guardar el cambio.');
+      fetchData();
     }
   };
 
@@ -160,17 +177,34 @@ const UnitDetailScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
           {timbres.map((t) => (
-            <TouchableOpacity key={t._id} style={styles.row}
-              onPress={() => navigation.navigate('QRViewer', { timbreId: t._id, direccionNombre: direccion.nombre })}>
-              <View style={styles.rowIcon}>
-                <MaterialCommunityIcons name="bell" size={18} color={COLORS.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowSub}>{t.tipo}</Text>
-                <Text style={styles.rowTitle}>{t.nombre}</Text>
-              </View>
-              <MaterialCommunityIcons name="qrcode" size={20} color={COLORS.gray400} />
-            </TouchableOpacity>
+            <View key={t._id} style={styles.timbreCard}>
+              <TouchableOpacity style={styles.row}
+                onPress={() => navigation.navigate('QRViewer', { timbreId: t._id, direccionNombre: direccion.nombre })}>
+                <View style={styles.rowIcon}>
+                  <MaterialCommunityIcons name="bell" size={18} color={COLORS.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowSub}>{t.tipo}</Text>
+                  <Text style={styles.rowTitle}>{t.nombre}</Text>
+                </View>
+                <MaterialCommunityIcons name="qrcode" size={20} color={COLORS.gray400} />
+              </TouchableOpacity>
+              {esDueno && (
+                <View style={styles.geoRow}>
+                  <MaterialCommunityIcons name="map-marker-radius" size={18} color={t.modoGeo ? COLORS.primary : COLORS.gray400} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.geoTitle}>Exigir ubicación</Text>
+                    <Text style={styles.geoSub}>El visitante debe compartir su ubicación para tocar.</Text>
+                  </View>
+                  <Switch
+                    value={!!t.modoGeo}
+                    onValueChange={(v) => toggleGeo(t, v)}
+                    trackColor={{ true: COLORS.primary, false: COLORS.gray300 }}
+                    thumbColor={COLORS.white}
+                  />
+                </View>
+              )}
+            </View>
           ))}
 
           {/* Familiares */}
@@ -241,6 +275,16 @@ const styles = StyleSheet.create({
   rowIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
   rowSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted },
   rowTitle: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.text },
+  timbreCard: { marginBottom: SPACING.sm },
+  geoRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border, borderTopWidth: 0,
+    borderTopLeftRadius: 0, borderTopRightRadius: 0, marginTop: -SPACING.sm - 1,
+  },
+  geoTitle: { fontSize: FONT_SIZES.sm, fontWeight: '700', color: COLORS.text },
+  geoSub: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 1 },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: COLORS.brand, fontWeight: '800', fontSize: FONT_SIZES.md },
 });

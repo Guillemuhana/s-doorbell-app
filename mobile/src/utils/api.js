@@ -105,6 +105,7 @@ export const eventosAPI = {
   getStats: (userId) => api.get(`/eventos/stats/${userId}`),
   getRecientes: (since) => api.get('/eventos/recientes', { params: since ? { since } : {} }),
   delete: (id) => api.delete(`/eventos/${id}`),
+  deleteAll: (tipo) => api.delete('/eventos', { params: tipo ? { tipo } : {} }),
 };
 
 // ─── Notificaciones API ───────────────────────────────────────────────────────

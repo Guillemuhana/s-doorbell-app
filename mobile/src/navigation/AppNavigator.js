@@ -13,6 +13,7 @@ import { getPendingInvite } from '../utils/pendingInvite';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
+import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import UnitDetailScreen from '../screens/UnitDetailScreen';
 import AddAddressScreen from '../screens/AddAddressScreen';
@@ -24,14 +25,16 @@ import NotificationsScreen from '../screens/NotificationsScreen';
 import VisitorTestScreen from '../screens/VisitorTestScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import CallScreen from '../screens/CallScreen';
+import ChatScreen from '../screens/ChatScreen';
 import AcceptInviteScreen from '../screens/AcceptInviteScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const AuthStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+  <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
     <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Screen name="Register" component={RegisterScreen} />
   </Stack.Navigator>
 );
 
@@ -77,6 +80,11 @@ const MainStack = () => (
       name="Call"
       component={CallScreen}
       options={{ presentation: 'fullScreenModal', gestureEnabled: false, animation: 'fade' }}
+    />
+    <Stack.Screen
+      name="Chat"
+      component={ChatScreen}
+      options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
     />
     <Stack.Screen
       name="AcceptInvite"

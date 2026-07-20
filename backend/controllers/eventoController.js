@@ -105,4 +105,21 @@ const deleteEvento = async (req, res, next) => {
   }
 };
 
-module.exports = { getHistorial, getStats, deleteEvento, getRecientes };
+/**
+ * DELETE /api/eventos?tipo=<tipo>
+ * Borra TODO el historial del usuario (opcionalmente filtrado por tipo).
+ */
+const deleteAllEventos = async (req, res, next) => {
+  try {
+    const sb = getSupabase();
+    let q = sb.from('eventos').delete().eq('user_id', req.usuario._id);
+    if (req.query.tipo) q = q.eq('tipo', req.query.tipo);
+    const { error } = await q;
+    if (error) throw error;
+    res.json({ success: true, message: 'Historial eliminado.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getHistorial, getStats, deleteEvento, deleteAllEventos, getRecientes };

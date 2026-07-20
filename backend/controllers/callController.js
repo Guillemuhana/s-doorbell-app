@@ -61,12 +61,17 @@ const getConfig = (_req, res) => {
 };
 
 /**
- * POST /api/calls/start/:qrId
- * El visitante inicia una videollamada. Crea la sesión y notifica a los miembros.
+ * POST /api/calls/start/:qrId   body { visitorName, modo? }
+ * El visitante inicia una conversación con el residente. `modo` puede ser
+ * 'video' (videollamada WebRTC, por defecto) o 'chat' (mensajería de texto).
+ * Ambas reusan la misma tabla de sesiones/señales; el modo se guarda como una
+ * señal 'meta' inicial para no depender de columnas nuevas en el esquema.
+ * Crea la sesión y notifica a los miembros.
  */
 const startCall = async (req, res, next) => {
   try {
     const { visitorName } = req.body || {};
+    const modo = req.body?.modo === 'chat' ? 'chat' : 'video';
     const resuelto = await resolverTimbre(req.params.qrId);
     if (!resuelto) return res.status(404).json({ error: 'QR no válido.' });
     const { timbre, direccion } = resuelto;
@@ -74,19 +79,23 @@ const startCall = async (req, res, next) => {
 
     const nombre = visitorName?.trim() || null;
 
-    // Evento (queda en el historial como videollamada).
+    // Evento (queda en el historial).
     const { data: evento } = await sb.from('eventos').insert({
       user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
-      tipo: 'videollamada', visitor_ip: req.ip, visitor_name: nombre,
+      tipo: modo === 'chat' ? 'chat' : 'videollamada', visitor_ip: req.ip, visitor_name: nombre,
       user_agent: req.headers['user-agent'],
     }).select('id').maybeSingle();
 
-    // Sesión de llamada.
+    // Sesión.
     const { data: call, error } = await sb.from('call_sessions').insert({
       direccion_id: direccion.id, timbre_id: timbre.id, evento_id: evento?.id || null,
       visitor_name: nombre, estado: 'ringing',
     }).select('*').single();
     if (error) throw error;
+
+    // Marca de modo (señal 'meta'): así listIncoming distingue chat de video sin
+    // columnas nuevas. emisor 'system' para no confundir con los peers.
+    await sb.from('call_signals').insert({ call_id: call.id, emisor: 'system', tipo: 'meta', payload: { modo } });
 
     // Notificar a todos los miembros con pushToken.
     const { data: ms } = await sb.from('memberships')
@@ -100,13 +109,14 @@ const startCall = async (req, res, next) => {
         visitorName: nombre,
         address: `${direccion.nombre} · ${timbre.nombre}`,
         callId: call.id,
+        modo,
       });
       if (result.tokenInvalid) {
         await sb.from('usuarios').update({ push_token: null }).eq('id', m.usuario.id);
       }
     }));
 
-    res.json({ success: true, callId: call.id, iceServers: getIceServers() });
+    res.json({ success: true, callId: call.id, modo, iceServers: getIceServers() });
   } catch (error) {
     next(error);
   }
@@ -145,8 +155,18 @@ const listIncoming = async (req, res, next) => {
       .gte('created_at', desde).order('created_at', { ascending: false }).limit(10);
     if (error) throw error;
 
+    // Modo (chat|video) de cada sesión: se lee de la señal 'meta' inicial.
+    const ids = (data || []).map((r) => r.id);
+    const modoPorSesion = {};
+    if (ids.length) {
+      const { data: metas } = await sb.from('call_signals')
+        .select('call_id, payload').in('call_id', ids).eq('tipo', 'meta');
+      (metas || []).forEach((m) => { modoPorSesion[m.call_id] = m.payload?.modo || 'video'; });
+    }
+
     const calls = (data || []).map((r) => ({
       ...mapCallSession(r),
+      modo: modoPorSesion[r.id] || 'video',
       direccion: r.direccion ? { _id: r.direccion.id, nombre: r.direccion.nombre } : null,
       timbre: r.timbre ? { _id: r.timbre.id, nombre: r.timbre.nombre } : null,
     }));
@@ -212,8 +232,15 @@ const residentHangup = (req, res, next) => hangup(req, res, next);
 async function postSignal(req, res, next, emisor) {
   try {
     const { tipo, payload } = req.body || {};
-    if (!['offer', 'answer', 'ice'].includes(tipo) || payload == null) {
+    // 'chat' = mensaje de texto (payload { text }). El resto es señalización WebRTC.
+    if (!['offer', 'answer', 'ice', 'chat'].includes(tipo) || payload == null) {
       return res.status(400).json({ error: 'Señal inválida.' });
+    }
+    if (tipo === 'chat') {
+      const text = typeof payload === 'string' ? payload : payload?.text;
+      if (!text || !text.trim() || text.length > 1000) {
+        return res.status(400).json({ error: 'Mensaje inválido.' });
+      }
     }
     const sb = getSupabase();
     const { data: call } = await sb.from('call_sessions').select('id,estado').eq('id', req.params.callId).maybeSingle();

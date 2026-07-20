@@ -1,5 +1,5 @@
 // src/screens/LoginScreen.js
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,11 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
+import { getPendingInvite } from '../utils/pendingInvite';
+import { invitacionesAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
-const LoginScreen = () => {
+const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +33,21 @@ const LoginScreen = () => {
   const { login } = useAuth();
   const passwordRef = useRef(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [invitacion, setInvitacion] = useState(null); // si se llegó por link de invitación
+
+  // ¿Vino por un link de invitación? Mostramos un cartel para dar contexto.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const token = await getPendingInvite();
+      if (!token || !vivo) return;
+      try {
+        const { data } = await invitacionesAPI.get(token);
+        if (vivo) setInvitacion(data.invitacion || data);
+      } catch { /* invitación inválida/expirada */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   const shake = () => {
     Animated.sequence([
@@ -83,6 +100,17 @@ const LoginScreen = () => {
           <View style={styles.header}>
             <Logo size="lg" />
           </View>
+
+          {invitacion && (
+            <View style={styles.inviteBanner}>
+              <MaterialCommunityIcons name="home-heart" size={22} color={COLORS.primaryDark} />
+              <Text style={styles.inviteText}>
+                Te invitaron a atender un timbre. Iniciá sesión o{' '}
+                <Text style={styles.inviteLink} onPress={() => navigation?.navigate('Register')}>creá tu cuenta</Text>{' '}
+                para unirte.
+              </Text>
+            </View>
+          )}
 
           {/* Form */}
           <Animated.View style={[styles.formCard, { transform: [{ translateX: shakeAnim }] }]}>
@@ -146,6 +174,10 @@ const LoginScreen = () => {
               ) : (
                 <Text style={styles.loginBtnText}>Entrar →</Text>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.switchBtn} onPress={() => navigation?.navigate('Register')} activeOpacity={0.7}>
+              <Text style={styles.switchText}>¿No tenés cuenta? <Text style={styles.switchStrong}>Crear cuenta</Text></Text>
             </TouchableOpacity>
           </Animated.View>
 
@@ -214,6 +246,16 @@ const styles = StyleSheet.create({
   },
   loginBtnDisabled: { opacity: 0.7 },
   loginBtnText: { color: COLORS.white, fontSize: FONT_SIZES.md, fontWeight: '700', letterSpacing: 0.5 },
+  switchBtn: { marginTop: SPACING.lg, alignItems: 'center' },
+  switchText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.base },
+  switchStrong: { color: COLORS.primaryDark, fontWeight: '700' },
+  inviteBanner: {
+    flexDirection: 'row', gap: SPACING.sm, alignItems: 'center',
+    backgroundColor: COLORS.primarySoft, borderRadius: RADIUS.md,
+    padding: SPACING.base, marginBottom: SPACING.base,
+  },
+  inviteText: { flex: 1, color: COLORS.primaryDark, fontSize: FONT_SIZES.sm, lineHeight: 19 },
+  inviteLink: { fontWeight: '800', textDecorationLine: 'underline' },
   footer: {
     textAlign: 'center',
     color: COLORS.textMuted,

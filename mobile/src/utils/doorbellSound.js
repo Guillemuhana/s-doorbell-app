@@ -60,17 +60,39 @@ function reproducirSintetizado() {
   campana(context, 523, t + 1.75, 0.75, V);
 }
 
+// Vibra (si el dispositivo/navegador lo soporta). Sirve como aviso aunque iOS
+// bloquee el audio: en Android/PWA la vibración no necesita desbloqueo previo.
+function vibrar() {
+  try {
+    if (esWeb && typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([300, 150, 300, 150, 300]);
+    }
+  } catch { /* noop */ }
+}
+
 // ─── Reproducir el timbre ────────────────────────────────────────────────────
-export function reproducirTimbre() {
+// `insistente` (por defecto true) repica dos veces para que sea más difícil de
+// pasar por alto con la app abierta.
+export function reproducirTimbre(insistente = true) {
   if (!esWeb) return;
+  vibrar();
   const a = getAudio();
   if (!a) { reproducirSintetizado(); return; }
   try {
     a.currentTime = 0;
+    a.volume = 1;
     const p = a.play();
     // Si el navegador rechaza la reproducción (no desbloqueado, error de red…),
     // caemos al sonido sintetizado para no quedarnos mudos.
     if (p && typeof p.catch === 'function') p.catch(() => reproducirSintetizado());
+    // Segundo repique para insistir (no se solapa: espera a que termine el 1º).
+    if (insistente) {
+      const repetir = () => {
+        a.removeEventListener('ended', repetir);
+        setTimeout(() => { try { a.currentTime = 0; a.play().catch(() => {}); } catch {} }, 350);
+      };
+      a.addEventListener('ended', repetir);
+    }
   } catch {
     reproducirSintetizado();
   }

@@ -35,6 +35,10 @@ const getVisitorInfo = async (req, res, next) => {
     res.json({
       success: true,
       casa: {
+        // `familia` es el nombre de la dirección (p.ej. "Familia Muhana"), que es
+        // lo que se muestra grande en la web del visitante. `nombreCompleto` es
+        // el dueño, como dato secundario.
+        familia: direccion.nombre || (owner ? `${owner.nombre} ${owner.apellido}` : 'Timbre'),
         nombreCompleto: owner ? `${owner.nombre} ${owner.apellido}` : direccion.nombre,
         direccion: direccion.direccion || direccion.nombre || 'Dirección privada',
         foto_fachada: direccion.foto,
@@ -66,6 +70,15 @@ const ringDoorbell = async (req, res, next) => {
     // Geo
     const visitorLat = typeof lat === 'number' ? lat : null;
     const visitorLng = typeof lng === 'number' ? lng : null;
+
+    // Si el dueño activó "exigir ubicación" (modo_geo), no se permite timbrar sin
+    // compartir la ubicación. Evita que timbren de lejos o al pasar escaneando.
+    if (timbre.modo_geo && (visitorLat === null || visitorLng === null)) {
+      return res.status(428).json({
+        error: 'Este timbre requiere compartir tu ubicación para poder tocar.',
+        requiereUbicacion: true,
+      });
+    }
     let distancia = null;
     let ubicacionVerificada = null;
     if (visitorLat !== null && visitorLng !== null && direccion.lat != null && direccion.lng != null) {

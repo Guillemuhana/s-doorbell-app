@@ -122,6 +122,7 @@
       color: var(--brand); text-transform: uppercase; margin-bottom: 6px;
     }
     .house-owner { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); }
+    .house-sub { font-size: 14px; color: var(--ink); opacity: 0.72; margin-top: 3px; font-weight: 600; }
     .house-address { font-size: 14px; color: var(--muted); margin-top: 5px; }
 
     /* Visitor name input */
@@ -255,20 +256,79 @@
       .ring-btn-emoji { font-size: 48px; }
     }
 
-    /* ─── Botón secundario videollamada ─────────────────────────────────── */
-    .video-btn {
-      width: 100%; height: 54px;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
+    /* ─── Botones de contacto (chat / videollamada) ──────────────────────── */
+    .contact-row { width: 100%; display: flex; gap: 10px; }
+    .contact-btn {
+      flex: 1; height: 54px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
       background: var(--white);
       border: 1.5px solid var(--brand);
       border-radius: 14px; color: var(--brand);
-      font-size: 15px; font-weight: 700; font-family: var(--font);
+      font-size: 14px; font-weight: 700; font-family: var(--font);
       cursor: pointer; transition: background 0.2s, transform 0.1s;
       -webkit-user-select: none; user-select: none;
     }
-    .video-btn:hover { background: rgba(46,155,224,0.08); }
-    .video-btn:active { transform: scale(0.97); }
-    .video-btn-icon { font-size: 20px; }
+    .contact-btn:hover { background: rgba(46,155,224,0.08); }
+    .contact-btn:active { transform: scale(0.97); }
+    .contact-btn-icon { font-size: 19px; }
+
+    /* ─── Chat de texto ──────────────────────────────────────────────────── */
+    .chat-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: #EEF3F8;
+      display: none; flex-direction: column;
+    }
+    .chat-overlay.show { display: flex; }
+    .chat-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+      background: var(--white); border-bottom: 1px solid var(--line);
+    }
+    .chat-back {
+      background: none; border: none; font-size: 22px; color: var(--ink);
+      cursor: pointer; padding: 4px; line-height: 1;
+    }
+    .chat-title { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .chat-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .chat-sub .dot { color: #FFCC00; }
+    .chat-sub.connected .dot { color: var(--success); }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-bubble {
+      max-width: 78%; padding: 10px 14px; border-radius: 16px;
+      font-size: 15px; line-height: 1.35; word-wrap: break-word;
+    }
+    .chat-bubble.me {
+      align-self: flex-end; background: var(--brand); color: var(--white);
+      border-bottom-right-radius: 5px;
+    }
+    .chat-bubble.them {
+      align-self: flex-start; background: var(--white); color: var(--ink);
+      border: 1px solid var(--line); border-bottom-left-radius: 5px;
+    }
+    .chat-bubble.system {
+      align-self: center; background: rgba(27,39,53,0.06); color: var(--muted);
+      font-size: 12.5px; text-align: center; border-radius: 10px;
+    }
+    .chat-inputbar {
+      display: flex; gap: 8px; padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+      background: var(--white); border-top: 1px solid var(--line);
+    }
+    .chat-input {
+      flex: 1; height: 46px; border: 1.5px solid var(--line);
+      border-radius: 23px; padding: 0 16px; font-size: 15px;
+      font-family: var(--font); outline: none; color: var(--ink);
+    }
+    .chat-input:focus { border-color: var(--brand); }
+    .chat-send {
+      width: 46px; height: 46px; border-radius: 50%; border: none;
+      background: var(--brand); color: var(--white); font-size: 20px;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .chat-send:disabled { opacity: 0.5; }
 
     /* ─── Pantalla de videollamada ──────────────────────────────────────── */
     .call-overlay {
@@ -385,6 +445,22 @@
     </div>
   </div>
 
+  <!-- ─── Pantalla de chat de texto ─── -->
+  <div class="chat-overlay" id="chat-overlay">
+    <div class="chat-header">
+      <button class="chat-back" onclick="closeChat()" aria-label="Volver">‹</button>
+      <div>
+        <div class="chat-title" id="chat-title">Mensaje</div>
+        <div class="chat-sub" id="chat-sub"><span class="dot">●</span> <span id="chat-sub-text">Esperando respuesta…</span></div>
+      </div>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-inputbar">
+      <input class="chat-input" id="chat-input" type="text" placeholder="Escribí un mensaje…" maxlength="1000" autocomplete="off" />
+      <button class="chat-send" id="chat-send" onclick="sendChatMessage()" aria-label="Enviar">➤</button>
+    </div>
+  </div>
+
   <!--
     VIGÍA. Bloque separado y en ES5 estricto: si el bloque principal de JS no
     parsea (un token que este navegador no entiende tumba el archivo entero, sin
@@ -431,6 +507,25 @@
     let casa = null;
     let ringing = false;
 
+    // Pide la ubicación del navegador. Devuelve { lat, lng, accuracy } o null.
+    // `obligatoria` solo cambia el mensaje/tiempo de espera.
+    function obtenerUbicacion(obligatoria) {
+      return new Promise(function (resolve) {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          function (pos) {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            });
+          },
+          function () { resolve(null); },
+          { enableHighAccuracy: true, timeout: obligatoria ? 12000 : 6000, maximumAge: 30000 }
+        );
+      });
+    }
+
     // ─── Fetch visitor info (con timeout) ─────────────────────────────────────
     async function loadCasa() {
       const ctrl = new AbortController();
@@ -464,14 +559,32 @@
 
       btn.classList.add('ringing');
       btn.innerHTML = `<div class="spinner"></div>`;
-      hint.textContent = 'Enviando timbrazo...';
       statusMsg.classList.remove('show', 'success', 'error');
 
+      // Si el timbre exige ubicación, la pedimos antes de tocar.
+      const requiereGeo = !!(casa && casa.modoGeo);
+      hint.textContent = requiereGeo ? 'Obteniendo tu ubicación…' : 'Enviando timbrazo...';
+      const ubic = requiereGeo ? await obtenerUbicacion(true) : await obtenerUbicacion(false);
+
+      if (requiereGeo && !ubic) {
+        btn.classList.remove('ringing');
+        btn.innerHTML = `<span class="ring-btn-emoji">🔔</span><span class="ring-btn-text">Tocar Timbre</span>`;
+        hint.textContent = 'Este timbre necesita tu ubicación';
+        statusMsg.textContent = '📍 Activá la ubicación para poder tocar este timbre.';
+        statusMsg.classList.add('show', 'error');
+        setTimeout(() => { statusMsg.classList.remove('show', 'error'); }, 5000);
+        ringing = false;
+        return;
+      }
+      hint.textContent = 'Enviando timbrazo...';
+
       try {
+        const body = { visitorName };
+        if (ubic) { body.lat = ubic.lat; body.lng = ubic.lng; body.accuracy = ubic.accuracy; }
         const res = await fetch(`${API_BASE}/api/visitor/${qrId}/ring`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorName }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -527,7 +640,9 @@
             }
             <div class="house-info">
               <div class="house-info-label">Timbre de</div>
-              <div class="house-owner">${escapeHtml(casa.nombreCompleto)}</div>
+              <div class="house-owner">${escapeHtml(casa.familia || casa.nombreCompleto)}</div>
+              ${casa.nombreCompleto && casa.nombreCompleto !== (casa.familia || '')
+                ? `<div class="house-sub">${escapeHtml(casa.nombreCompleto)}</div>` : ''}
               ${casa.direccion ? `<div class="house-address">📍 ${escapeHtml(casa.direccion)}</div>` : ''}
             </div>
           </div>
@@ -554,10 +669,16 @@
             <p class="ring-hint" id="ring-hint">Toca el botón para avisar que estás en la puerta</p>
           </div>
 
-          <button class="video-btn" id="video-btn" onclick="startVideoCall()">
-            <span class="video-btn-icon">📹</span>
-            <span>Iniciar videollamada</span>
-          </button>
+          <div class="contact-row">
+            <button class="contact-btn" id="chat-btn" onclick="startChat()">
+              <span class="contact-btn-icon">💬</span>
+              <span>Enviar mensaje</span>
+            </button>
+            <button class="contact-btn" id="video-btn" onclick="startVideoCall()">
+              <span class="contact-btn-icon">📹</span>
+              <span>Videollamada</span>
+            </button>
+          </div>
 
           <div class="status-msg" id="status-msg"></div>
 
@@ -789,6 +910,140 @@
       showCallCenter('Esperando que atiendan…');
       setCallStatus('Llamando…', false);
     }
+
+    // ═══ CHAT DE TEXTO ═════════════════════════════════════════════════════════
+    // Reusa la infraestructura de llamadas: una sesión con modo 'chat' y los
+    // mensajes viajan como señales tipo 'chat'.
+    let chatId = null;
+    let chatPollTimer = null;
+    let chatCursor = 0;
+    let chatActive = false;
+    let chatConnected = false;
+
+    function chatEl(id) { return document.getElementById(id); }
+
+    function addChatBubble(text, who) {
+      const cont = chatEl('chat-messages');
+      if (!cont) return;
+      const div = document.createElement('div');
+      div.className = 'chat-bubble ' + who;
+      div.textContent = text;
+      cont.appendChild(div);
+      cont.scrollTop = cont.scrollHeight;
+    }
+
+    function setChatStatus(text, connected) {
+      const sub = chatEl('chat-sub');
+      const t = chatEl('chat-sub-text');
+      if (t) t.textContent = text;
+      if (sub) { if (connected) sub.classList.add('connected'); else sub.classList.remove('connected'); }
+    }
+
+    async function startChat() {
+      if (chatActive) return;
+      const visitorName = leerNombreVisitante();
+      chatActive = true;
+      chatConnected = false;
+      chatCursor = 0;
+
+      const cont = chatEl('chat-messages');
+      if (cont) cont.innerHTML = '';
+      chatEl('chat-overlay').classList.add('show');
+      chatEl('chat-title').textContent = casa && casa.familia ? casa.familia : 'Mensaje';
+      setChatStatus('Enviando aviso…', false);
+      addChatBubble('Estás enviando un mensaje al timbre. Esperá a que te respondan.', 'system');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitorName: visitorName, modo: 'chat' }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'No se pudo iniciar el chat');
+        chatId = data.callId;
+        setChatStatus('Esperando respuesta…', false);
+        startChatPolling();
+      } catch (err) {
+        setChatStatus('No se pudo conectar', false);
+        addChatBubble(err.message || 'No se pudo iniciar el chat.', 'system');
+        chatActive = false;
+      }
+    }
+
+    function startChatPolling() {
+      const poll = async () => {
+        if (!chatActive || !chatId) return;
+        try {
+          const res = await fetch(`${API_BASE}/api/calls/${chatId}/visitor/poll?after=${chatCursor}`);
+          const data = await res.json();
+          if (!data.success) return;
+
+          if (['ended', 'rejected', 'timeout'].includes(data.estado)) {
+            setChatStatus('Conversación finalizada', false);
+            addChatBubble(data.estado === 'rejected' ? 'El residente no puede atender ahora.' : 'La conversación se cerró.', 'system');
+            stopChatPolling();
+            const inp = chatEl('chat-input'); if (inp) inp.disabled = true;
+            const snd = chatEl('chat-send'); if (snd) snd.disabled = true;
+            return;
+          }
+          if (data.estado === 'accepted' && !chatConnected) {
+            chatConnected = true;
+            setChatStatus('En línea', true);
+            addChatBubble('El residente se unió a la conversación.', 'system');
+          }
+
+          chatCursor = data.cursor || chatCursor;
+          (data.signals || []).forEach(function (sig) {
+            if (sig.tipo === 'chat') {
+              const text = typeof sig.payload === 'string' ? sig.payload : (sig.payload && sig.payload.text);
+              if (text) addChatBubble(text, 'them');
+            }
+          });
+        } catch (e) { /* sin red: reintenta */ }
+      };
+      poll();
+      chatPollTimer = setInterval(poll, 1500);
+    }
+
+    function stopChatPolling() {
+      if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+    }
+
+    async function sendChatMessage() {
+      const inp = chatEl('chat-input');
+      if (!inp || !chatId || !chatActive) return;
+      const text = inp.value.trim();
+      if (!text) return;
+      inp.value = '';
+      addChatBubble(text, 'me');
+      try {
+        await fetch(`${API_BASE}/api/calls/${chatId}/visitor/signal`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo: 'chat', payload: { text: text } }),
+        });
+      } catch (e) {
+        addChatBubble('No se pudo enviar. Revisá tu conexión.', 'system');
+      }
+    }
+
+    async function closeChat() {
+      if (chatId) {
+        try { await fetch(`${API_BASE}/api/calls/${chatId}/visitor/hangup`, { method: 'POST' }); } catch (e) {}
+      }
+      stopChatPolling();
+      chatActive = false; chatConnected = false; chatId = null; chatCursor = 0;
+      const ov = chatEl('chat-overlay'); if (ov) ov.classList.remove('show');
+      const inp = chatEl('chat-input'); if (inp) inp.disabled = false;
+      const snd = chatEl('chat-send'); if (snd) snd.disabled = false;
+    }
+
+    // Enviar con Enter.
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && chatActive && document.activeElement && document.activeElement.id === 'chat-input') {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
 
     // ─── Init ─────────────────────────────────────────────────────────────────
     if (!qrId || qrId === 'visit') {

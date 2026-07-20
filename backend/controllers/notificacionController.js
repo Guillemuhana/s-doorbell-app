@@ -1,6 +1,8 @@
 // controllers/notificacionController.js
 const { getSupabase } = require('../config/supabase');
 const { sendGenericNotification } = require('../services/pushNotificationService');
+const { sendWebPush, isWebPushSubscription } = require('../services/webPushService');
+const logger = require('../config/logger');
 
 /**
  * POST /api/notificaciones/guardar-token
@@ -29,19 +31,32 @@ const testNotification = async (req, res, next) => {
     const sb = getSupabase();
     const { data: usuario } = await sb.from('usuarios').select('push_token').eq('id', req.usuario._id).maybeSingle();
     if (!usuario?.push_token) {
-      return res.status(400).json({ error: 'No hay token registrado. Abre la app primero.' });
+      return res.status(400).json({
+        error: 'No hay notificaciones activadas. Tocá "Activar notificaciones" primero (y en iPhone, agregá la app a la pantalla de inicio).',
+      });
     }
 
-    const result = await sendGenericNotification({
-      pushToken: usuario.push_token,
-      title: '🔔 S-Doorbell Test',
-      body: 'Las notificaciones están funcionando correctamente.',
-      data: { type: 'TEST' },
-    });
+    const token = usuario.push_token;
+    const title = '🔔 ¡Timbre! (prueba)';
+    const body = 'Así vas a recibir el timbre con la app cerrada.';
+
+    // El push_token puede ser una suscripción Web Push (PWA) o un token FCM.
+    // Elegimos el canal según el formato — igual que el timbrazo real.
+    let result;
+    if (isWebPushSubscription(token)) {
+      result = await sendWebPush(token, { title, body, data: { type: 'TEST' } });
+      if (result.gone) {
+        await sb.from('usuarios').update({ push_token: null }).eq('id', req.usuario._id);
+        return res.status(400).json({ error: 'La suscripción venció. Tocá "Activar notificaciones" de nuevo.' });
+      }
+    } else {
+      result = await sendGenericNotification({ pushToken: token, title, body, data: { type: 'TEST' } });
+    }
 
     if (result.success) {
       res.json({ success: true, message: 'Notificación de prueba enviada.', messageId: result.messageId });
     } else {
+      logger.warn('Test notification failed:', result.error);
       res.status(500).json({ error: 'Error enviando notificación.', detail: result.error });
     }
   } catch (error) {

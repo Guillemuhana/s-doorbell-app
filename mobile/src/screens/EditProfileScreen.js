@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
+import { buildImageFormData } from '../utils/imageUpload';
 import { useAuth } from '../context/AuthContext';
 import { usuarioAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
@@ -120,12 +121,7 @@ const EditProfileScreen = ({ navigation }) => {
   const uploadPhoto = async (asset) => {
     setUploadingPhoto(true);
     try {
-      const formData = new FormData();
-      const filename = asset.uri.split('/').pop();
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-      formData.append('foto_fachada', { uri: asset.uri, name: filename, type });
+      const formData = await buildImageFormData('foto_fachada', asset);
 
       const { data } = await usuarioAPI.uploadFoto(usuario._id, formData);
       await updateUser({ foto_fachada: data.foto_fachada });

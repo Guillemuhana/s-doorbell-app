@@ -20,10 +20,12 @@ export default function RingWatcher() {
   const sinceRef = useRef(new Date().toISOString());
   const openedCallRef = useRef(null); // callId ya abierto, para no reabrir
 
-  const abrirLlamada = (callId, visitorName, direccionNombre) => {
+  // modo 'chat' abre la pantalla de mensajes; cualquier otro, la videollamada.
+  const abrirLlamada = (callId, visitorName, direccionNombre, modo) => {
     if (!callId || openedCallRef.current === callId) return;
     openedCallRef.current = callId;
-    navigate('Call', { callId, visitorName, direccionNombre });
+    const pantalla = modo === 'chat' ? 'Chat' : 'Call';
+    navigate(pantalla, { callId, visitorName, direccionNombre });
   };
 
   // En web, habilita el audio en el primer toque del usuario (requisito de iOS).
@@ -90,7 +92,7 @@ export default function RingWatcher() {
         const { data } = await callsAPI.incoming();
         const call = (data.calls || [])[0];
         if (call && !stopped) {
-          abrirLlamada(call._id, call.visitorName, call.direccion?.nombre);
+          abrirLlamada(call._id, call.visitorName, call.direccion?.nombre, call.modo);
         }
       } catch { /* silencioso (p.ej. backend sin endpoint de calls) */ }
     };
@@ -112,7 +114,7 @@ export default function RingWatcher() {
     const sub = addNotificationResponseListener((response) => {
       const data = response?.notification?.request?.content?.data || {};
       if (data.type === 'INCOMING_CALL' && data.callId) {
-        abrirLlamada(data.callId, data.visitorName, data.address);
+        abrirLlamada(data.callId, data.visitorName, data.address, data.modo);
       }
     });
     return () => { try { sub?.remove(); } catch {} };

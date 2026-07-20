@@ -106,6 +106,33 @@ export const AuthProvider = ({ children }) => {
     return data;
   }, []);
 
+  // ─── Register ─────────────────────────────────────────────────────────────
+  // Crea la cuenta y deja la sesión iniciada (mismo flujo que login). Se usa,
+  // entre otras cosas, cuando un familiar invitado por link todavía no tiene
+  // cuenta: se registra y después se procesa la invitación pendiente.
+  const register = useCallback(async (payload) => {
+    const { data } = await authAPI.register(payload);
+
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.TOKEN, data.token],
+      [STORAGE_KEYS.USER, JSON.stringify(data.usuario)],
+    ]);
+
+    dispatch({ type: 'LOGIN_SUCCESS', payload: data });
+
+    try {
+      const pushToken = await registerForPushNotifications();
+      if (pushToken) {
+        await notificacionesAPI.guardarToken(pushToken);
+        dispatch({ type: 'UPDATE_USER', payload: { pushToken } });
+      }
+    } catch (err) {
+      console.warn('Push token registration failed:', err);
+    }
+
+    return data;
+  }, []);
+
   // ─── Logout ───────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     await clearStorage();
@@ -120,7 +147,7 @@ export const AuthProvider = ({ children }) => {
   }, [state.usuario]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
