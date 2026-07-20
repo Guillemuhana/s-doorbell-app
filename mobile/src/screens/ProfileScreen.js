@@ -68,6 +68,20 @@ const ProfileScreen = ({ navigation }) => {
     Alert.alert('🔔 Timbre', 'Si no sonó, revisá que el interruptor de silencio del costado del teléfono NO esté en naranja, y que el volumen esté arriba.');
   };
 
+  // Llamada telefónica de prueba: suena "sí o sí" como una llamada normal.
+  const probarLlamada = async () => {
+    if (!usuario?.telefono) {
+      Alert.alert('Falta tu teléfono', 'Cargá tu número en "Editar perfil" con código de país (ej. +5491122334455) para recibir la llamada.');
+      return;
+    }
+    try {
+      await notificacionesAPI.testLlamada();
+      Alert.alert('📞 Te estamos llamando', 'En unos segundos debería sonar tu teléfono. Así te va a sonar cuando toquen el timbre.');
+    } catch (e) {
+      Alert.alert('No se pudo llamar', e?.response?.data?.error || 'No se pudo hacer la llamada de prueba.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="dark" />
@@ -90,6 +104,7 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.card}>
           <Row icon="account-outline" label="Editar perfil" subtitle="Nombre, email, teléfono, contraseña" onPress={() => navigation.navigate('EditProfile')} />
           <Row icon="history" label="Historial de timbrazos" onPress={() => navigation.navigate('Notifications')} />
+          <Row icon="phone-in-talk" label="Probar llamada" subtitle="Te llamamos para que suene sí o sí" onPress={probarLlamada} />
         </View>
 
         {Platform.OS === 'web' && (

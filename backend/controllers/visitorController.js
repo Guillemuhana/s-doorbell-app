@@ -2,6 +2,7 @@
 const { getSupabase } = require('../config/supabase');
 const { sendRingNotification } = require('../services/pushNotificationService');
 const { sendWebPush, isWebPushSubscription } = require('../services/webPushService');
+const { llamarTimbre, twilioConfigurado } = require('../services/twilioService');
 const { distanciaMetros, UMBRAL_VERIFICADO } = require('../utils/geo');
 const logger = require('../config/logger');
 
@@ -86,9 +87,9 @@ const ringDoorbell = async (req, res, next) => {
       if (distancia !== null) ubicacionVerificada = distancia <= UMBRAL_VERIFICADO;
     }
 
-    // Notificar a todos los miembros con pushToken
+    // Notificar a todos los miembros con pushToken (y teléfono, para la llamada)
     const { data: ms } = await sb.from('memberships')
-      .select('usuario:usuarios(id,nombre,apellido,push_token)')
+      .select('usuario:usuarios(id,nombre,apellido,push_token,telefono)')
       .eq('direccion_id', direccion.id).eq('estado', 'activo');
 
     let enviados = 0;
@@ -124,6 +125,23 @@ const ringDoorbell = async (req, res, next) => {
       }
     }));
 
+    // Llamada telefónica REAL (Twilio): suena "sí o sí" aunque el PWA esté
+    // cerrado o el iPhone en silencio para el push. Se llama a cada miembro con
+    // teléfono cargado. Si Twilio no está configurado, esto no hace nada.
+    let llamados = 0;
+    if (twilioConfigurado) {
+      await Promise.all((ms || [])
+        .filter((m) => m.usuario && m.usuario.telefono)
+        .map(async (m) => {
+          const r = await llamarTimbre({
+            to: m.usuario.telefono,
+            visitorName: nombreVisitante,
+            address: direccion.nombre,
+          });
+          if (r.success) llamados += 1;
+        }));
+    }
+
     await sb.from('eventos').insert({
       user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
       tipo: 'timbrazo', visitor_ip: visitorIP, visitor_name: visitorName?.trim() || null,
@@ -136,7 +154,7 @@ const ringDoorbell = async (req, res, next) => {
     });
 
     res.json({
-      success: true, message: 'Timbre enviado.', notificados: enviados,
+      success: true, message: 'Timbre enviado.', notificados: enviados, llamados,
       distanciaMetros: distancia, ubicacionVerificada,
       timestamp: new Date().toISOString(),
     });
