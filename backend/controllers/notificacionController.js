@@ -2,7 +2,6 @@
 const { getSupabase } = require('../config/supabase');
 const { sendGenericNotification } = require('../services/pushNotificationService');
 const { sendWebPush, isWebPushSubscription } = require('../services/webPushService');
-const { llamarTimbre, twilioConfigurado } = require('../services/twilioService');
 const logger = require('../config/logger');
 
 /**
@@ -65,28 +64,4 @@ const testNotification = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/notificaciones/test-llamada
- * Llama al teléfono del propio usuario para probar la llamada de timbre.
- */
-const testLlamada = async (req, res, next) => {
-  try {
-    if (!twilioConfigurado) {
-      return res.status(503).json({ error: 'Las llamadas todavía no están configuradas en el servidor.' });
-    }
-    const sb = getSupabase();
-    const { data: usuario } = await sb.from('usuarios').select('telefono').eq('id', req.usuario._id).maybeSingle();
-    if (!usuario?.telefono) {
-      return res.status(400).json({ error: 'Cargá tu teléfono en el perfil (con código de país, ej. +5491122334455).' });
-    }
-    const r = await llamarTimbre({ to: usuario.telefono, visitorName: 'Prueba', address: 'tu casa' });
-    if (r.success) return res.json({ success: true, message: 'Te estamos llamando…' });
-    return res.status(400).json({ error: r.error === 'Teléfono inválido'
-      ? 'El teléfono no tiene un formato válido. Usá código de país, ej. +5491122334455.'
-      : 'No se pudo hacer la llamada de prueba.' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-module.exports = { guardarToken, testNotification, testLlamada };
+module.exports = { guardarToken, testNotification };

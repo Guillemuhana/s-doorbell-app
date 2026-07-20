@@ -112,7 +112,6 @@ export const eventosAPI = {
 export const notificacionesAPI = {
   guardarToken: (pushToken) => api.post('/notificaciones/guardar-token', { pushToken }),
   testNotification: () => api.post('/notificaciones/test'),
-  testLlamada: () => api.post('/notificaciones/test-llamada'),
 };
 
 // ─── Videollamadas API (residente) ──────────────────────────────────────────────
