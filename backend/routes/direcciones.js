@@ -17,6 +17,11 @@ const {
   crearInvitacion,
   eliminarFamiliar,
 } = require('../controllers/familiarController');
+const {
+  listBloqueos,
+  crearBloqueo,
+  eliminarBloqueo,
+} = require('../controllers/bloqueoController');
 
 router.use(protect); // Todas requieren auth
 
@@ -35,5 +40,10 @@ router.post('/:id/timbres', crearTimbre);
 router.get('/:id/familiares', listFamiliares);
 router.post('/:id/invitaciones', crearInvitacion);
 router.delete('/:id/familiares/:membershipId', eliminarFamiliar);
+
+// Bloqueo de visitantes de la dirección
+router.get('/:id/bloqueos', listBloqueos);
+router.post('/:id/bloqueos', crearBloqueo);
+router.delete('/:id/bloqueos/:bloqueoId', eliminarBloqueo);
 
 module.exports = router;

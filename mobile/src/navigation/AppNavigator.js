@@ -17,11 +17,19 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import UnitDetailScreen from '../screens/UnitDetailScreen';
 import AddAddressScreen from '../screens/AddAddressScreen';
+import EdificiosScreen from '../screens/EdificiosScreen';
+import CreateEdificioScreen from '../screens/CreateEdificioScreen';
+import EdificioDetailScreen from '../screens/EdificioDetailScreen';
+import AddUnidadScreen from '../screens/AddUnidadScreen';
+import EdificioHistorialScreen from '../screens/EdificioHistorialScreen';
+import BulkUsuariosScreen from '../screens/BulkUsuariosScreen';
+import BulkUnidadesScreen from '../screens/BulkUnidadesScreen';
 import InviteFamilyScreen from '../screens/InviteFamilyScreen';
 import QRViewerScreen from '../screens/QRViewerScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import BloqueadosScreen from '../screens/BloqueadosScreen';
 import VisitorTestScreen from '../screens/VisitorTestScreen';
 import LoadingScreen from '../screens/LoadingScreen';
 import CallScreen from '../screens/CallScreen';
@@ -44,6 +52,13 @@ const InicioStack = () => (
     <Stack.Screen name="Home" component={HomeScreen} />
     <Stack.Screen name="UnitDetail" component={UnitDetailScreen} />
     <Stack.Screen name="AddAddress" component={AddAddressScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="Edificios" component={EdificiosScreen} />
+    <Stack.Screen name="EdificioDetail" component={EdificioDetailScreen} />
+    <Stack.Screen name="EdificioHistorial" component={EdificioHistorialScreen} />
+    <Stack.Screen name="CreateEdificio" component={CreateEdificioScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="AddUnidad" component={AddUnidadScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="BulkUsuarios" component={BulkUsuariosScreen} options={{ presentation: 'modal' }} />
+    <Stack.Screen name="BulkUnidades" component={BulkUnidadesScreen} options={{ presentation: 'modal' }} />
     <Stack.Screen name="InviteFamily" component={InviteFamilyScreen} options={{ presentation: 'modal' }} />
     <Stack.Screen name="QRViewer" component={QRViewerScreen} options={{ presentation: 'modal' }} />
     <Stack.Screen name="VisitorTest" component={VisitorTestScreen} options={{ presentation: 'modal' }} />
@@ -56,6 +71,7 @@ const PerfilStack = () => (
     <Stack.Screen name="Profile" component={ProfileScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ presentation: 'modal' }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
+    <Stack.Screen name="Bloqueados" component={BloqueadosScreen} />
   </Stack.Navigator>
 );
 

@@ -21,10 +21,12 @@ const eventoRoutes = require('./routes/eventos');
 const notificacionRoutes = require('./routes/notificaciones');
 const visitorRoutes = require('./routes/visitor');
 const direccionRoutes = require('./routes/direcciones');
+const edificioRoutes = require('./routes/edificios');
 const timbreRoutes = require('./routes/timbres');
 const invitacionRoutes = require('./routes/invitaciones');
 const callRoutes = require('./routes/calls');
 const pushRoutes = require('./routes/push');
+const referidoRoutes = require('./routes/referidos');
 
 const app = express();
 
@@ -126,18 +128,29 @@ app.get('/visit/:qrId', (req, res) => {
   res.sendFile(path.join(VISITOR_DIR, 'index.html'));
 });
 
+// Página pública de canje de referido (regalo del 30%).
+const REFERIDO_DIR = fs.existsSync(path.join(__dirname, 'referido-web'))
+  ? path.join(__dirname, 'referido-web')
+  : path.join(__dirname, '../referido-web');
+app.use('/referido', express.static(REFERIDO_DIR));
+app.get('/referido/:code', (req, res) => {
+  res.sendFile(path.join(REFERIDO_DIR, 'index.html'));
+});
+
 // ─── API Routes ──────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/eventos', eventoRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/direcciones', direccionRoutes);
+app.use('/api/edificios', edificioRoutes);
 app.use('/api/timbres', timbreRoutes);
 app.use('/api/invitaciones', invitacionRoutes);
 app.use('/api/visitor', ringLimiter, visitorRoutes);
 app.use('/api/calls/start', callStartLimiter);
 app.use('/api/calls', callLimiter, callRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/referidos', referidoRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

@@ -241,6 +241,57 @@
     .loading-state { text-align: center; opacity: 0; animation: fadeIn 0.4s ease forwards; }
     .loading-title { font-size: 16px; color: var(--muted); margin-top: 16px; }
 
+    /* ─── Directorio de edificio (elegir unidad) ─────────────────────────── */
+    .dir-card {
+      width: 100%; background: var(--card);
+      border: 1px solid var(--line); border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(27,39,53,0.08), 0 2px 6px rgba(27,39,53,0.04);
+      opacity: 0; animation: fadeUp 0.6s ease 0.15s forwards;
+    }
+    .dir-head {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .dir-title { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); }
+    .dir-address { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+    .dir-hint { font-size: 13px; color: var(--muted); margin: 14px 0 8px; text-align: center; }
+    .dir-search {
+      width: 100%; height: 46px; margin: 0 0 6px;
+      background: var(--white); border: 1.5px solid var(--line);
+      border-radius: 12px; color: var(--ink); font-size: 15px;
+      padding: 0 14px; outline: none; font-family: var(--font);
+    }
+    .dir-search:focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(46,155,224,0.12); }
+    .dir-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .unit-item {
+      display: flex; align-items: center; gap: 12px;
+      width: 100%; text-align: left;
+      padding: 14px 20px; background: none; border: none;
+      border-top: 1px solid var(--line);
+      cursor: pointer; font-family: var(--font);
+      transition: background 0.15s;
+    }
+    .unit-item:first-child { border-top: none; }
+    .unit-item:active { background: rgba(46,155,224,0.08); }
+    .unit-badge {
+      min-width: 46px; height: 42px; padding: 0 9px;
+      border-radius: 11px; background: rgba(46,155,224,0.12);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--brand-dark); font-weight: 800; font-size: 14px; flex-shrink: 0;
+    }
+    .unit-name { flex: 1; font-size: 15.5px; font-weight: 700; color: var(--ink); }
+    .unit-chevron { color: #C2CCD8; font-size: 22px; }
+    .dir-empty { padding: 26px 20px; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* Link "elegir otra unidad" arriba de la vista de una unidad */
+    .back-dir {
+      align-self: flex-start; background: none; border: none;
+      color: var(--brand); font-size: 14px; font-weight: 700;
+      cursor: pointer; padding: 4px 2px; font-family: var(--font);
+      display: flex; align-items: center; gap: 4px;
+    }
+
     /* Animations */
     @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
@@ -1261,12 +1312,28 @@ function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.
 function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
 var API_BASE = '';
 var qrId = window.location.pathname.split('/').filter(Boolean).pop();
+var entradaQrId = qrId;
+var enEdificio = false;
+var directorio = null;
 function leerNombreVisitante() {
   var el = document.getElementById('visitor-name');
   return el && el.value ? el.value.trim() : '';
 }
 var casa = null;
 var ringing = false;
+function obtenerVisitorId() {
+  try {
+    var k = 'sd_vid';
+    var v = window.localStorage.getItem(k);
+    if (!v) {
+      v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      window.localStorage.setItem(k, v);
+    }
+    return v;
+  } catch (e) {
+    return null;
+  }
+}
 function obtenerUbicacion(obligatoria) {
   return new Promise(function (resolve) {
     if (!navigator.geolocation) {
@@ -1319,12 +1386,21 @@ function _loadCasa() {
           }
           throw new Error(data.error || 'QR no válido');
         case 4:
+          if (!data.esDirectorio) {
+            _context3.n = 5;
+            break;
+          }
+          enEdificio = true;
+          directorio = data;
+          renderDirectorio(data);
+          return _context3.a(2);
+        case 5:
           casa = data.casa;
           render();
-          _context3.n = 6;
+          _context3.n = 7;
           break;
-        case 5:
-          _context3.p = 5;
+        case 6:
+          _context3.p = 6;
           _t4 = _context3.v;
           clearTimeout(timer);
           if (_t4.name === 'AbortError' || _t4.message === 'Failed to fetch') {
@@ -1332,10 +1408,10 @@ function _loadCasa() {
           } else {
             renderError(_t4.message);
           }
-        case 6:
+        case 7:
           return _context3.a(2);
       }
-    }, _callee3, null, [[1, 5]]);
+    }, _callee3, null, [[1, 6]]);
   }));
   return _loadCasa.apply(this, arguments);
 }
@@ -1399,7 +1475,8 @@ function _ringDoorbell() {
           hint.textContent = 'Enviando timbrazo...';
           _context4.p = 7;
           body = {
-            visitorName: visitorName
+            visitorName: visitorName,
+            visitorId: obtenerVisitorId()
           };
           if (ubic) {
             body.lat = ubic.lat;
@@ -1463,7 +1540,7 @@ function _ringDoorbell() {
 function render() {
   if (window.__cancelWatchdog) window.__cancelWatchdog();
   var app = document.getElementById('app');
-  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          <div class=\"house-card\">\n            ".concat(casa.foto_fachada ? "<img src=\"".concat(casa.foto_fachada, "\" alt=\"Fachada\" class=\"house-photo\" />") : "<div class=\"house-photo-placeholder\">\n                  <span class=\"house-photo-placeholder-icon\">\uD83C\uDFE0</span>\n                  <span class=\"house-photo-placeholder-text\">Casa de ".concat(escapeHtml(casa.nombreCompleto), "</span>\n                </div>"), "\n            <div class=\"house-info\">\n              <div class=\"house-info-label\">Timbre de</div>\n              <div class=\"house-owner\">").concat(escapeHtml(casa.familia || casa.nombreCompleto), "</div>\n              ").concat(casa.nombreCompleto && casa.nombreCompleto !== (casa.familia || '') ? "<div class=\"house-sub\">".concat(escapeHtml(casa.nombreCompleto), "</div>") : '', "\n              ").concat(casa.direccion ? "<div class=\"house-address\">\uD83D\uDCCD ".concat(escapeHtml(casa.direccion), "</div>") : '', "\n            </div>\n          </div>\n\n          <div class=\"name-section\">\n            <label class=\"name-label\" for=\"visitor-name\">Tu nombre (opcional)</label>\n            <input\n              type=\"text\" id=\"visitor-name\"\n              class=\"name-input\"\n              placeholder=\"\xBFC\xF3mo te llamas?\"\n              maxlength=\"60\"\n              autocomplete=\"name\"\n            />\n          </div>\n\n          <div class=\"ring-section\">\n            <div class=\"ring-btn-wrapper\">\n              <div class=\"ring-btn-glow\"></div>\n              <button class=\"ring-btn\" id=\"ring-btn\" onclick=\"ringDoorbell()\" aria-label=\"Tocar timbre\">\n                <span class=\"ring-btn-emoji\">\uD83D\uDD14</span>\n                <span class=\"ring-btn-text\">Tocar Timbre</span>\n              </button>\n            </div>\n            <p class=\"ring-hint\" id=\"ring-hint\">Toca el bot\xF3n para avisar que est\xE1s en la puerta</p>\n          </div>\n\n          <div class=\"contact-row\">\n            <button class=\"contact-btn\" id=\"chat-btn\" onclick=\"startChat()\">\n              <span class=\"contact-btn-icon\">\uD83D\uDCAC</span>\n              <span>Enviar mensaje</span>\n            </button>\n            <button class=\"contact-btn\" id=\"video-btn\" onclick=\"startVideoCall()\">\n              <span class=\"contact-btn-icon\">\uD83D\uDCF9</span>\n              <span>Videollamada</span>\n            </button>\n          </div>\n\n          <div class=\"status-msg\" id=\"status-msg\"></div>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          ".concat(enEdificio && qrId !== entradaQrId ? "<button class=\"back-dir\" onclick=\"volverDirectorio()\">\u2039 Elegir otra unidad</button>" : '', "\n\n          <div class=\"house-card\">\n            ").concat(casa.foto_fachada ? "<img src=\"".concat(casa.foto_fachada, "\" alt=\"Fachada\" class=\"house-photo\" />") : "<div class=\"house-photo-placeholder\">\n                  <span class=\"house-photo-placeholder-icon\">\uD83C\uDFE0</span>\n                  <span class=\"house-photo-placeholder-text\">Casa de ".concat(escapeHtml(casa.nombreCompleto), "</span>\n                </div>"), "\n            <div class=\"house-info\">\n              <div class=\"house-info-label\">Timbre de</div>\n              <div class=\"house-owner\">").concat(escapeHtml(casa.familia || casa.nombreCompleto), "</div>\n              ").concat(casa.nombreCompleto && casa.nombreCompleto !== (casa.familia || '') ? "<div class=\"house-sub\">".concat(escapeHtml(casa.nombreCompleto), "</div>") : '', "\n              ").concat(casa.direccion ? "<div class=\"house-address\">\uD83D\uDCCD ".concat(escapeHtml(casa.direccion), "</div>") : '', "\n            </div>\n          </div>\n\n          <div class=\"name-section\">\n            <label class=\"name-label\" for=\"visitor-name\">Tu nombre (opcional)</label>\n            <input\n              type=\"text\" id=\"visitor-name\"\n              class=\"name-input\"\n              placeholder=\"\xBFC\xF3mo te llamas?\"\n              maxlength=\"60\"\n              autocomplete=\"name\"\n            />\n          </div>\n\n          <div class=\"ring-section\">\n            <div class=\"ring-btn-wrapper\">\n              <div class=\"ring-btn-glow\"></div>\n              <button class=\"ring-btn\" id=\"ring-btn\" onclick=\"ringDoorbell()\" aria-label=\"Tocar timbre\">\n                <span class=\"ring-btn-emoji\">\uD83D\uDD14</span>\n                <span class=\"ring-btn-text\">Tocar Timbre</span>\n              </button>\n            </div>\n            <p class=\"ring-hint\" id=\"ring-hint\">Toca el bot\xF3n para avisar que est\xE1s en la puerta</p>\n          </div>\n\n          <div class=\"contact-row\">\n            <button class=\"contact-btn\" id=\"chat-btn\" onclick=\"startChat()\">\n              <span class=\"contact-btn-icon\">\uD83D\uDCAC</span>\n              <span>Enviar mensaje</span>\n            </button>\n            <button class=\"contact-btn\" id=\"video-btn\" onclick=\"startVideoCall()\">\n              <span class=\"contact-btn-icon\">\uD83D\uDCF9</span>\n              <span>Videollamada</span>\n            </button>\n          </div>\n\n          <div class=\"status-msg\" id=\"status-msg\"></div>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
   var btn = document.getElementById('ring-btn');
   var glow = btn && btn.previousElementSibling;
   if (btn && glow) {
@@ -1482,6 +1559,54 @@ function renderError(msg, retry) {
 }
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function renderDirectorio(data) {
+  if (window.__cancelWatchdog) window.__cancelWatchdog();
+  var edi = data.edificio || {};
+  var app = document.getElementById('app');
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"brand\">\n            <span class=\"brand-icon\">\uD83D\uDD14</span>\n            <span class=\"brand-name\">S-Doorbell</span>\n          </div>\n\n          <div class=\"dir-card\">\n            <div class=\"dir-head\">\n              <div class=\"house-info-label\">Timbre de entrada</div>\n              <div class=\"dir-title\">".concat(escapeHtml(edi.nombre || 'Edificio'), "</div>\n              ").concat(edi.direccion ? "<div class=\"dir-address\">\uD83D\uDCCD ".concat(escapeHtml(edi.direccion), "</div>") : '', "\n            </div>\n            <input type=\"text\" id=\"dir-search\" class=\"dir-search\" style=\"margin:14px 16px 10px;width:calc(100% - 32px);\"\n              placeholder=\"Buscar unidad\u2026\" oninput=\"filtrarUnidades(this.value)\" autocomplete=\"off\" />\n            <div class=\"dir-list\" id=\"dir-list\"></div>\n          </div>\n\n          <p class=\"ring-hint\">Eleg\xED la unidad a la que quer\xE9s tocar el timbre.</p>\n\n          <p class=\"footer\">\n            Powered by <a href=\"#\">S-Doorbell</a> \xB7 Timbre digital inteligente\n          </p>\n        </div>\n      ");
+  pintarUnidades(data.unidades || []);
+}
+function pintarUnidades(unidades) {
+  var cont = document.getElementById('dir-list');
+  if (!cont) return;
+  if (!unidades.length) {
+    cont.innerHTML = "<div class=\"dir-empty\">No hay unidades disponibles todav\xEDa.</div>";
+    return;
+  }
+  cont.innerHTML = unidades.map(function (u) {
+    var etiqueta = u.unidad ? escapeHtml(u.unidad) : '🔔';
+    return "<button class=\"unit-item\" onclick=\"elegirUnidad('".concat(escapeHtml(u.qrId), "')\">\n            <span class=\"unit-badge\">").concat(etiqueta, "</span>\n            <span class=\"unit-name\">").concat(escapeHtml(u.nombre || 'Unidad'), "</span>\n            <span class=\"unit-chevron\">\u203A</span>\n          </button>");
+  }).join('');
+}
+function filtrarUnidades(q) {
+  if (!directorio) return;
+  var term = String(q || '').toLowerCase().trim();
+  var list = (directorio.unidades || []).filter(function (u) {
+    return !term || u.nombre && u.nombre.toLowerCase().indexOf(term) !== -1 || u.unidad && u.unidad.toLowerCase().indexOf(term) !== -1;
+  });
+  pintarUnidades(list);
+}
+function mostrarCargando(texto) {
+  var app = document.getElementById('app');
+  app.innerHTML = "\n        <div class=\"page-content\">\n          <div class=\"loading-state\">\n            <div class=\"spinner\" style=\"margin: 0 auto;\"></div>\n            <p class=\"loading-title\">".concat(escapeHtml(texto || 'Cargando…'), "</p>\n          </div>\n        </div>\n      ");
+}
+function elegirUnidad(unidadQrId) {
+  if (!unidadQrId) return;
+  qrId = unidadQrId;
+  ringing = false;
+  mostrarCargando('Cargando timbre…');
+  loadCasa();
+}
+function volverDirectorio() {
+  qrId = entradaQrId;
+  ringing = false;
+  if (directorio) {
+    renderDirectorio(directorio);
+    return;
+  }
+  mostrarCargando('Cargando…');
+  loadCasa();
 }
 var pc = null;
 var localStream = null;
@@ -1553,7 +1678,8 @@ function _startVideoCall() {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-              visitorName: visitorName
+              visitorName: visitorName,
+              visitorId: obtenerVisitorId()
             })
           });
         case 7:
@@ -1976,7 +2102,8 @@ function _startChat() {
             },
             body: JSON.stringify({
               visitorName: visitorName,
-              modo: 'chat'
+              modo: 'chat',
+              visitorId: obtenerVisitorId()
             })
           });
         case 3:

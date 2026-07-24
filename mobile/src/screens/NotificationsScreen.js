@@ -8,10 +8,10 @@ import { StatusBar } from 'expo-status-bar';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { eventosAPI } from '../utils/api';
+import { eventosAPI, direccionesAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
-const EventItem = ({ evento, onDelete, isDark }) => {
+const EventItem = ({ evento, onDelete, onBlock, isDark }) => {
   const textColor = isDark ? COLORS.white : COLORS.gray900;
   const mutedColor = isDark ? COLORS.gray400 : COLORS.gray500;
 
@@ -55,7 +55,11 @@ const EventItem = ({ evento, onDelete, isDark }) => {
         )}
         <View style={styles.eventMeta}>
           <Text style={[styles.eventDate, { color: mutedColor }]}>{dateLabel}</Text>
-          {evento.tipo === 'timbrazo' && (
+          {evento.blocked ? (
+            <View style={[styles.notifBadge, { backgroundColor: 'rgba(255,59,48,0.15)' }]}>
+              <Text style={[styles.notifBadgeText, { color: COLORS.error }]}>🚫 Bloqueado</Text>
+            </View>
+          ) : evento.tipo === 'timbrazo' && (
             <View style={[styles.notifBadge, { backgroundColor: evento.notificationSent ? 'rgba(52,199,89,0.15)' : 'rgba(255,149,0,0.15)' }]}>
               <Text style={[styles.notifBadgeText, { color: evento.notificationSent ? COLORS.success : COLORS.warning }]}>
                 {evento.notificationSent ? '✓ Notif. enviada' : '⚠ Sin notif.'}
@@ -64,6 +68,11 @@ const EventItem = ({ evento, onDelete, isDark }) => {
           )}
         </View>
       </View>
+      {evento.tipo === 'timbrazo' && !evento.blocked && evento.direccionId?._id && (
+        <TouchableOpacity onPress={() => onBlock(evento)} style={styles.deleteBtn}>
+          <MaterialCommunityIcons name="account-cancel-outline" size={20} color={COLORS.error} />
+        </TouchableOpacity>
+      )}
       <TouchableOpacity onPress={() => onDelete(evento._id)} style={styles.deleteBtn}>
         <MaterialCommunityIcons name="trash-can-outline" size={20} color={mutedColor} />
       </TouchableOpacity>
@@ -147,6 +156,32 @@ const NotificationsScreen = ({ navigation }) => {
     ]);
   };
 
+  const handleBlock = (evento) => {
+    const dirId = evento.direccionId?._id;
+    if (!dirId) return;
+    const nombre = evento.visitorName || 'este visitante';
+    Alert.alert(
+      'Bloquear visitante',
+      `¿Bloquear a ${nombre}? No vas a recibir más timbres ni llamadas de esta persona (y no se va a enterar).`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Bloquear', style: 'destructive', onPress: async () => {
+            try {
+              await direccionesAPI.bloquear(dirId, {
+                visitorId: evento.visitorId, visitorIp: evento.visitorIP, nombre: evento.visitorName,
+              });
+              Alert.alert('Bloqueado', 'Listo, esta persona ya no puede molestarte por el timbre.');
+              fetchEventos(1, true);
+            } catch (err) {
+              Alert.alert('Error', err?.response?.data?.error || 'No se pudo bloquear.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleDeleteAll = () => {
     if (!eventos.length) return;
     const label = filter === 'timbrazo' ? 'los timbrazos' : 'los escaneos';
@@ -176,9 +211,14 @@ const NotificationsScreen = ({ navigation }) => {
             <MaterialCommunityIcons name="chevron-left" size={28} color={COLORS.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Historial</Text>
-          <TouchableOpacity onPress={handleDeleteAll} disabled={!eventos.length} style={{ width: 32, alignItems: 'flex-end' }}>
-            <MaterialCommunityIcons name="trash-can-outline" size={24} color={eventos.length ? COLORS.white : 'rgba(255,255,255,0.4)'} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.base }}>
+            <TouchableOpacity onPress={() => navigation.navigate('Bloqueados')}>
+              <MaterialCommunityIcons name="account-cancel-outline" size={23} color={COLORS.white} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDeleteAll} disabled={!eventos.length}>
+              <MaterialCommunityIcons name="trash-can-outline" size={24} color={eventos.length ? COLORS.white : 'rgba(255,255,255,0.4)'} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {stats && (
@@ -214,7 +254,7 @@ const NotificationsScreen = ({ navigation }) => {
           data={eventos}
           keyExtractor={item => item._id}
           renderItem={({ item }) => (
-            <EventItem evento={item} onDelete={handleDelete} isDark={isDark} />
+            <EventItem evento={item} onDelete={handleDelete} onBlock={handleBlock} isDark={isDark} />
           )}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}

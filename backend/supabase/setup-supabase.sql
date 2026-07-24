@@ -161,3 +161,42 @@ create index if not exists idx_call_signals_poll on call_signals (call_id, emiso
 --   delete from call_sessions where created_at < now() - interval '1 day';
 -- (call_signals se borra en cascada).
 -- ============================================================
+
+
+-- ============================================================
+-- S-Doorbell — EDIFICIOS / COMPLEJOS (multi-unidad, administrador)
+-- (Ver detalle en edificios-schema.sql)
+-- Un EDIFICIO es una `direcciones` con tipo='Edificio'; las UNIDADES son
+-- `direcciones` hijas (parent_id). Solo agrega 2 columnas + 1 índice.
+-- ============================================================
+alter table direcciones
+  add column if not exists parent_id uuid references direcciones(id) on delete cascade;
+alter table direcciones
+  add column if not exists unidad text;
+create index if not exists idx_direcciones_parent on direcciones (parent_id);
+-- ============================================================
+
+
+-- ============================================================
+-- S-Doorbell — REFERIDOS (regalar 30% a un amigo, 1 canje por usuario)
+-- (Ver detalle en referidos-schema.sql)
+-- ============================================================
+alter table usuarios
+  add column if not exists referral_code text unique;
+
+create table if not exists referidos (
+  id uuid primary key default gen_random_uuid(),
+  referrer_id uuid not null references usuarios(id) on delete cascade,
+  code text not null,
+  amigo_nombre text,
+  amigo_email text,
+  descuento int not null default 30,
+  estado text not null default 'canjeado',   -- canjeado | aplicado
+  created_at timestamptz default now(),
+  redeemed_at timestamptz default now(),
+  applied_at timestamptz,
+  unique (referrer_id)                        -- 1 solo canje total por usuario
+);
+create index if not exists idx_referidos_referrer on referidos (referrer_id);
+create index if not exists idx_referidos_code on referidos (code);
+-- ============================================================

@@ -3,6 +3,7 @@ const { getSupabase } = require('../config/supabase');
 const { sendRingNotification } = require('../services/pushNotificationService');
 const { sendWebPush, isWebPushSubscription } = require('../services/webPushService');
 const { distanciaMetros, UMBRAL_VERIFICADO } = require('../utils/geo');
+const { estaBloqueado } = require('../utils/bloqueo');
 const logger = require('../config/logger');
 
 // Resuelve un qrId → timbre + dirección (activos).
@@ -25,6 +26,42 @@ const getVisitorInfo = async (req, res, next) => {
     const { timbre, direccion } = resuelto;
 
     const sb = getSupabase();
+
+    // Si el QR es el de la ENTRADA de un edificio/complejo, no hay un solo
+    // destinatario: se devuelve el DIRECTORIO de unidades para que el visitante
+    // elija a quién tocar. Cada unidad reusa su propio QR (pipeline normal).
+    if (direccion.tipo === 'Edificio') {
+      const { data: unidadesRaw } = await sb.from('direcciones')
+        .select('id,nombre,unidad')
+        .eq('parent_id', direccion.id)
+        .eq('activa', true)
+        .order('unidad', { ascending: true })
+        .order('nombre', { ascending: true });
+
+      const unidades = await Promise.all((unidadesRaw || []).map(async (u) => {
+        const { data: tim } = await sb.from('timbres')
+          .select('qr_id').eq('direccion_id', u.id).eq('activo', true)
+          .order('created_at', { ascending: true }).limit(1).maybeSingle();
+        return tim ? { nombre: u.nombre, unidad: u.unidad || null, qrId: tim.qr_id } : null;
+      }));
+
+      await sb.from('eventos').insert({
+        user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
+        tipo: 'vista_qr', visitor_ip: req.ip, user_agent: req.headers['user-agent'],
+      });
+
+      return res.json({
+        success: true,
+        esDirectorio: true,
+        edificio: {
+          nombre: direccion.nombre,
+          direccion: direccion.direccion || '',
+          foto_fachada: direccion.foto,
+        },
+        unidades: unidades.filter(Boolean),
+      });
+    }
+
     const { data: owner } = await sb.from('usuarios').select('nombre,apellido').eq('id', direccion.owner_id).maybeSingle();
 
     await sb.from('eventos').insert({
@@ -57,7 +94,7 @@ const getVisitorInfo = async (req, res, next) => {
  */
 const ringDoorbell = async (req, res, next) => {
   try {
-    const { visitorName, lat, lng, accuracy } = req.body;
+    const { visitorName, lat, lng, accuracy, visitorId } = req.body;
     const resuelto = await resolverTimbre(req.params.qrId);
     if (!resuelto) return res.status(404).json({ error: 'QR no válido.' });
     const { timbre, direccion } = resuelto;
@@ -66,6 +103,22 @@ const ringDoorbell = async (req, res, next) => {
     const visitorIP =
       req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
       req.headers['x-real-ip'] || req.connection?.remoteAddress || req.ip;
+    const vid = (visitorId || '').toString().trim() || null;
+
+    // ─── BLOQUEO ──────────────────────────────────────────────────────────────
+    // Si este visitante está bloqueado en esta dirección, NO notificamos a nadie
+    // (y le devolvemos "enviado" igual para que no se dé cuenta). Se registra el
+    // intento como evento bloqueado.
+    if (await estaBloqueado(sb, direccion.id, { visitorId: vid, visitorIp: visitorIP })) {
+      await sb.from('eventos').insert({
+        user_id: direccion.owner_id, direccion_id: direccion.id, timbre_id: timbre.id,
+        tipo: 'timbrazo', visitor_ip: visitorIP, visitor_name: visitorName?.trim() || null,
+        user_agent: req.headers['user-agent'],
+        notification_sent: false, notification_error: 'bloqueado',
+        metadata: { blocked: true, visitorId: vid },
+      });
+      return res.json({ success: true, message: 'Timbre enviado.', notificados: 0, timestamp: new Date().toISOString() });
+    }
 
     // Geo
     const visitorLat = typeof lat === 'number' ? lat : null;
@@ -147,6 +200,7 @@ const ringDoorbell = async (req, res, next) => {
       distancia_metros: distancia, ubicacion_verificada: ubicacionVerificada,
       notification_sent: enviados > 0,
       notification_error: enviados > 0 ? null : 'Sin destinatarios con token',
+      metadata: { visitorId: vid },
     });
 
     res.json({

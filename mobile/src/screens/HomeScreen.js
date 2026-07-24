@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ImageBackground, Image, ActivityIndicator,
+  RefreshControl, ImageBackground, Image, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -69,6 +69,13 @@ const ActionTile = ({ icon, label, sub, onPress }) => (
 
 const HomeScreen = ({ navigation }) => {
   const { usuario } = useAuth();
+  const { width } = useWindowDimensions();
+  // "Modo PC": pantalla ancha. El panel de edificios (crear complejos para
+  // clientes) es solo para el admin de plataforma y solo en PC. En el celular
+  // guillemuhana usa la app como su timbre de casa, sin ver edificios.
+  const esAdmin = !!usuario?.isAdmin;
+  const modoPC = width >= 900;
+  const mostrarEdificios = esAdmin && modoPC;
   const [direcciones, setDirecciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -145,6 +152,21 @@ const HomeScreen = ({ navigation }) => {
           ))
         )}
 
+        {/* Panel de edificios — solo admin de plataforma, solo en PC */}
+        {mostrarEdificios && (
+          <TouchableOpacity style={styles.edificiosCard} activeOpacity={0.9} onPress={() => navigation.navigate('Edificios')}>
+            <View style={styles.edificiosIcon}>
+              <MaterialCommunityIcons name="office-building-cog" size={24} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>ADMIN · PC</Text></View>
+              <Text style={styles.edificiosTitle}>Panel de edificios</Text>
+              <Text style={styles.edificiosSub}>Creá y gestioná complejos para tus clientes</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.gray300} />
+          </TouchableOpacity>
+        )}
+
         {/* Banner carrusel (efecto cubo) */}
         {principal && (
           <BannerCarousel onPress={() => navigation.navigate('UnitDetail', { direccionId: principal._id })} />
@@ -215,6 +237,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A1526', ...SHADOWS.md,
   },
   bannerImg: { width: '100%', height: 212 },
+
+  edificiosCard: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, padding: SPACING.base,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.lg, ...SHADOWS.sm,
+  },
+  edificiosIcon: { width: 48, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  adminBadge: { alignSelf: 'flex-start', backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 3 },
+  adminBadgeText: { color: COLORS.white, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+  edificiosTitle: { fontSize: FONT_SIZES.base, fontWeight: '800', color: COLORS.text },
+  edificiosSub: { fontSize: FONT_SIZES.xs, color: COLORS.textSecondary, marginTop: 2 },
 
   tilesRow: { flexDirection: 'row', gap: SPACING.sm },
   tile: { flex: 1, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, paddingVertical: SPACING.md, paddingHorizontal: 4, alignItems: 'center', gap: 3, borderWidth: 1, borderColor: COLORS.border },

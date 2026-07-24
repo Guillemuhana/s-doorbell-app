@@ -5,6 +5,7 @@
 const { getSupabase } = require('../config/supabase');
 const { sendIncomingCallNotification } = require('../services/pushNotificationService');
 const { mapCallSession } = require('../db/mappers');
+const { estaBloqueado } = require('../utils/bloqueo');
 const logger = require('../config/logger');
 
 // ─── Config de servidores ICE (STUN/TURN) ──────────────────────────────────
@@ -70,7 +71,7 @@ const getConfig = (_req, res) => {
  */
 const startCall = async (req, res, next) => {
   try {
-    const { visitorName } = req.body || {};
+    const { visitorName, visitorId } = req.body || {};
     const modo = req.body?.modo === 'chat' ? 'chat' : 'video';
     const resuelto = await resolverTimbre(req.params.qrId);
     if (!resuelto) return res.status(404).json({ error: 'QR no válido.' });
@@ -78,6 +79,16 @@ const startCall = async (req, res, next) => {
     const sb = getSupabase();
 
     const nombre = visitorName?.trim() || null;
+
+    // Visitante bloqueado: devolvemos una sesión "fantasma" (nadie es notificado)
+    // para que no se dé cuenta. Nunca va a ser atendida.
+    const visitorIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip;
+    if (await estaBloqueado(sb, direccion.id, { visitorId, visitorIp: visitorIP })) {
+      const { data: ghost } = await sb.from('call_sessions').insert({
+        direccion_id: direccion.id, timbre_id: timbre.id, visitor_name: nombre, estado: 'ringing',
+      }).select('id').single();
+      return res.json({ success: true, callId: ghost?.id || null, modo, iceServers: getIceServers() });
+    }
 
     // Evento (queda en el historial).
     const { data: evento } = await sb.from('eventos').insert({

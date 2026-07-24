@@ -80,6 +80,32 @@ export const direccionesAPI = {
   invitar: (id, data) => api.post(`/direcciones/${id}/invitaciones`, data),
   eliminarFamiliar: (id, membershipId) =>
     api.delete(`/direcciones/${id}/familiares/${membershipId}`),
+  // Bloqueo de visitantes
+  getBloqueos: (id) => api.get(`/direcciones/${id}/bloqueos`),
+  bloquear: (id, data) => api.post(`/direcciones/${id}/bloqueos`, data),
+  desbloquear: (id, bloqueoId) => api.delete(`/direcciones/${id}/bloqueos/${bloqueoId}`),
+};
+
+// ─── Edificios / Complejos API ────────────────────────────────────────────────
+export const edificiosAPI = {
+  list: () => api.get('/edificios'),
+  get: (id) => api.get(`/edificios/${id}`),
+  create: (data) => api.post('/edificios', data),
+  update: (id, data) => api.put(`/edificios/${id}`, data),
+  delete: (id) => api.delete(`/edificios/${id}`),
+  addUnidad: (id, data) => api.post(`/edificios/${id}/unidades`, data),
+  removeUnidad: (id, unidadId) => api.delete(`/edificios/${id}/unidades/${unidadId}`),
+  historial: (id, params = {}) => api.get(`/edificios/${id}/historial`, { params }),
+  // Alta masiva de usuarios sobre el timbre de una unidad.
+  bulkUsuarios: (id, unidadId, data) => api.post(`/edificios/${id}/unidades/${unidadId}/usuarios-bulk`, data),
+  // Alta masiva de UNIDADES (auto/manual), cada una con su timbre y usuario provisorio.
+  bulkUnidades: (id, data) => api.post(`/edificios/${id}/unidades-bulk`, data),
+};
+
+// ─── Referidos API (regalar 30% a un amigo) ───────────────────────────────────
+export const referidosAPI = {
+  miCodigo: () => api.get('/referidos/mi-codigo'),
+  marcarAplicado: () => api.patch('/referidos/mi-canje/aplicar'),
 };
 
 // ─── Timbres API ──────────────────────────────────────────────────────────────

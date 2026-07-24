@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>S-Doorbell — Tu descuento</title>
+  <meta name="theme-color" content="#2E9BE0" />
+  <style>
+    :root{
+      --brand:#2E9BE0; --brand-dark:#1E7DBC; --gold:#E0A82E; --gold-dark:#C48F1E;
+      --ink:#1B2735; --muted:#6B7787; --line:#E4EAF1; --card:#FFFFFF;
+      --success:#2FA35A; --error:#E0483B; --white:#FFFFFF;
+      --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',Roboto,sans-serif;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;background:#EEF3F8;color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;}
+    #app{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:28px 22px calc(28px + env(safe-area-inset-bottom));
+      background:radial-gradient(120% 60% at 50% -10%,rgba(224,168,46,0.14),transparent 60%),linear-gradient(180deg,#F4F8FC 0%,#E9F0F7 100%);}
+    .content{width:100%;max-width:400px;display:flex;flex-direction:column;align-items:center;gap:20px;}
+    .brand{display:flex;align-items:center;gap:9px;}
+    .brand-icon{font-size:22px;} .brand-name{font-size:17px;font-weight:800;letter-spacing:-0.3px;color:var(--brand);}
+    .card{width:100%;background:var(--card);border:1px solid var(--line);border-radius:22px;overflow:hidden;
+      box-shadow:0 12px 30px rgba(27,39,53,0.08),0 2px 6px rgba(27,39,53,0.04);}
+    .hero{background:linear-gradient(145deg,#F0B84A,var(--gold) 55%,var(--gold-dark));padding:26px 22px;text-align:center;color:#fff;}
+    .hero-badge{font-size:52px;font-weight:900;letter-spacing:-1px;text-shadow:0 2px 4px rgba(0,0,0,0.15);}
+    .hero-sub{font-size:14px;font-weight:700;opacity:0.95;margin-top:2px;text-transform:uppercase;letter-spacing:1px;}
+    .body{padding:22px 20px 24px;}
+    .lead{font-size:16px;color:var(--ink);text-align:center;line-height:1.5;margin-bottom:18px;}
+    .lead b{color:var(--brand-dark);}
+    .label{font-size:11px;font-weight:700;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin:12px 0 6px;display:block;}
+    .input{width:100%;height:50px;background:#fff;border:1.5px solid var(--line);border-radius:13px;color:var(--ink);
+      font-size:16px;padding:0 15px;outline:none;font-family:var(--font);transition:border-color .2s,box-shadow .2s;}
+    .input:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(46,155,224,0.12);}
+    .btn{width:100%;height:54px;margin-top:18px;border:none;border-radius:14px;cursor:pointer;
+      background:linear-gradient(145deg,#4FB0EE,var(--brand) 60%,var(--brand-dark));color:#fff;
+      font-size:16px;font-weight:800;font-family:var(--font);box-shadow:0 10px 24px rgba(46,155,224,0.36);}
+    .btn:active{transform:scale(0.98);} .btn:disabled{opacity:0.6;}
+    .msg{width:100%;margin-top:14px;padding:13px 16px;border-radius:13px;font-size:14px;font-weight:600;text-align:center;display:none;}
+    .msg.show{display:block;} .msg.error{background:rgba(224,72,59,0.1);color:var(--error);border:1px solid rgba(224,72,59,0.25);}
+    .state{text-align:center;padding:12px 8px;}
+    .state-icon{font-size:58px;margin-bottom:12px;} .state-title{font-size:21px;font-weight:800;color:var(--ink);margin-bottom:8px;}
+    .state-text{color:var(--muted);font-size:15px;line-height:1.5;}
+    .foot{color:#9AA5B2;font-size:12px;text-align:center;}
+    .foot a{color:var(--brand);text-decoration:none;font-weight:600;}
+    .spinner{width:34px;height:34px;border:3px solid rgba(46,155,224,0.2);border-top-color:var(--brand);border-radius:50%;
+      margin:0 auto;animation:spin .8s linear infinite;} @keyframes spin{to{transform:rotate(360deg);}}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="content">
+      <div class="state"><div class="spinner"></div><p class="label" style="margin-top:16px;">Cargando…</p></div>
+    </div>
+  </div>
+
+  <script>
+    var API_BASE = '';
+    var code = window.location.pathname.split('/').filter(Boolean).pop();
+    var referente = '';
+    var descuento = 30;
+
+    function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+    function el(id){return document.getElementById(id);}
+
+    function load(){
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', API_BASE + '/api/referidos/' + encodeURIComponent(code), true);
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState !== 4) return;
+        var data = {};
+        try { data = JSON.parse(xhr.responseText); } catch(e){}
+        if (xhr.status >= 200 && xhr.status < 300 && data.success){
+          referente = data.referente || 'Un amigo';
+          descuento = data.descuento || 30;
+          if (data.disponible === false) renderUsado();
+          else renderForm();
+        } else {
+          renderError(data.error || 'Este código no es válido.');
+        }
+      };
+      xhr.onerror = function(){ renderError('No se pudo conectar. Revisá tu internet.'); };
+      xhr.send();
+    }
+
+    function renderForm(){
+      el('app').innerHTML =
+        '<div class="content">' +
+          '<div class="brand"><span class="brand-icon">🔔</span><span class="brand-name">S-Doorbell</span></div>' +
+          '<div class="card">' +
+            '<div class="hero"><div class="hero-badge">' + descuento + '% OFF</div><div class="hero-sub">Regalo de un amigo</div></div>' +
+            '<div class="body">' +
+              '<p class="lead"><b>' + esc(referente) + '</b> te regala <b>' + descuento + '% de descuento</b> en S-Doorbell 🎁</p>' +
+              '<label class="label" for="n">Tu nombre</label>' +
+              '<input class="input" id="n" type="text" maxlength="60" placeholder="¿Cómo te llamás?" autocomplete="name" />' +
+              '<label class="label" for="e">Tu email</label>' +
+              '<input class="input" id="e" type="email" maxlength="120" placeholder="tu@email.com" autocomplete="email" />' +
+              '<button class="btn" id="btn" onclick="canjear()">Obtener mi 30%</button>' +
+              '<div class="msg error" id="msg"></div>' +
+            '</div>' +
+          '</div>' +
+          '<p class="foot">Powered by <a href="#">S-Doorbell</a></p>' +
+        '</div>';
+    }
+
+    function canjear(){
+      var nombre = (el('n').value || '').trim();
+      var email = (el('e').value || '').trim();
+      var msg = el('msg'); msg.className = 'msg error';
+      if (!nombre){ msg.textContent = 'Ingresá tu nombre.'; msg.className = 'msg error show'; return; }
+      if (!/^\S+@\S+\.\S+$/.test(email)){ msg.textContent = 'Ingresá un email válido.'; msg.className = 'msg error show'; return; }
+      var btn = el('btn'); btn.disabled = true; btn.textContent = 'Enviando…';
+
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', API_BASE + '/api/referidos/' + encodeURIComponent(code) + '/canjear', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function(){
+        if (xhr.readyState !== 4) return;
+        var data = {};
+        try { data = JSON.parse(xhr.responseText); } catch(e){}
+        if (xhr.status >= 200 && xhr.status < 300 && data.success){
+          renderExito();
+        } else if (data && data.yaCanjeado){
+          renderUsado();
+        } else {
+          btn.disabled = false; btn.textContent = 'Obtener mi 30%';
+          msg.textContent = (data && data.error) || 'No se pudo canjear. Probá de nuevo.';
+          msg.className = 'msg error show';
+        }
+      };
+      xhr.onerror = function(){
+        btn.disabled = false; btn.textContent = 'Obtener mi 30%';
+        msg.textContent = 'No se pudo conectar. Revisá tu internet.'; msg.className = 'msg error show';
+      };
+      xhr.send(JSON.stringify({ nombre: nombre, email: email }));
+    }
+
+    function renderExito(){
+      el('app').innerHTML =
+        '<div class="content"><div class="card"><div class="body">' +
+          '<div class="state"><div class="state-icon">🎉</div>' +
+          '<div class="state-title">¡Descuento activado!</div>' +
+          '<div class="state-text">Guardamos tu <b>' + descuento + '% de descuento</b>. ' +
+          esc(referente) + ' te va a contactar para aplicarlo cuando actives tu S-Doorbell.</div></div>' +
+        '</div></div><p class="foot">Powered by <a href="#">S-Doorbell</a></p></div>';
+    }
+
+    function renderUsado(){
+      el('app').innerHTML =
+        '<div class="content"><div class="card"><div class="body">' +
+          '<div class="state"><div class="state-icon">⏳</div>' +
+          '<div class="state-title">Descuento ya canjeado</div>' +
+          '<div class="state-text">Este regalo del ' + descuento + '% ya fue usado. ' +
+          'Cada link se puede canjear una sola vez.</div></div>' +
+        '</div></div><p class="foot">Powered by <a href="#">S-Doorbell</a></p></div>';
+    }
+
+    function renderError(txt){
+      el('app').innerHTML =
+        '<div class="content"><div class="card"><div class="body">' +
+          '<div class="state"><div class="state-icon">🚫</div>' +
+          '<div class="state-title">Código no válido</div>' +
+          '<div class="state-text">' + esc(txt) + '</div></div>' +
+        '</div></div><p class="foot">Powered by <a href="#">S-Doorbell</a></p></div>';
+    }
+
+    if (!code || code === 'referido'){ renderError('Falta el código del descuento en el link.'); }
+    else { load(); }
+  </script>
+</body>
+</html>

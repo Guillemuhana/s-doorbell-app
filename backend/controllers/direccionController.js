@@ -19,7 +19,12 @@ const listDirecciones = async (req, res, next) => {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
-    const validos = (ms || []).filter((m) => m.direccion);
+    // "Mis direcciones" son solo casas sueltas: se excluyen los edificios
+    // (tipo 'Edificio') y las unidades que cuelgan de un edificio (parent_id),
+    // que se administran desde la sección Edificios.
+    const validos = (ms || []).filter(
+      (m) => m.direccion && !m.direccion.parent_id && m.direccion.tipo !== 'Edificio'
+    );
     const direcciones = await Promise.all(validos.map(async (m) => {
       const [{ count: timbresCount }, { count: familiaresCount }] = await Promise.all([
         sb.from('timbres').select('id', { count: 'exact', head: true }).eq('direccion_id', m.direccion.id),

@@ -1,4 +1,5 @@
 // App.js
+import './src/utils/webAlert'; // parche: Alert.alert web-safe (debe ir PRIMERO)
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';

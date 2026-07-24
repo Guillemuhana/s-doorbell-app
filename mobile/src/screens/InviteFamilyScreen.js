@@ -1,5 +1,5 @@
 // src/screens/InviteFamilyScreen.js — invitar familiares (mockup 3)
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   ScrollView, Alert, Share, ActivityIndicator, Platform, Linking,
@@ -7,10 +7,126 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { direccionesAPI } from '../utils/api';
+import { direccionesAPI, referidosAPI } from '../utils/api';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
 
 const mensajeInvite = (link) => `Te invito a atender el timbre en S-Doorbell 🔔\n${link}`;
+const mensajeReferido = (desc, link) => `¡Te regalo ${desc}% de descuento en S-Doorbell! 🎁 Es por única vez, activalo acá:\n${link}`;
+
+// Bloque "Regalá 30% a un amigo" — link único por usuario, 1 solo canje total.
+const ReferralCard = () => {
+  const [ref, setRef] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [copiado, setCopiado] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+
+  const fetchRef = useCallback(async () => {
+    try {
+      const { data } = await referidosAPI.miCodigo();
+      setRef(data);
+    } catch (err) {
+      // Si la tabla/columna aún no existe (migración pendiente), no rompemos la pantalla.
+      console.warn('Referidos no disponible:', err?.response?.data?.error || err?.message);
+      setRef(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRef(); }, [fetchRef]);
+
+  if (loading) {
+    return <ActivityIndicator color={COLORS.primary} style={{ marginTop: SPACING.xl }} />;
+  }
+  if (!ref) return null;
+
+  const desc = ref.descuento || 30;
+  const canje = ref.canje;
+
+  const compartir = async () => {
+    try { await Share.share({ message: mensajeReferido(desc, ref.url) }); }
+    catch { Alert.alert('Enlace', ref.url); }
+  };
+  const compartirWhatsApp = () => {
+    const url = `https://wa.me/?text=${encodeURIComponent(mensajeReferido(desc, ref.url))}`;
+    Linking.openURL(url).catch(compartir);
+  };
+  const copiar = async () => {
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(ref.url);
+        setCopiado(true); setTimeout(() => setCopiado(false), 2000);
+        return;
+      }
+      await Share.share({ message: mensajeReferido(desc, ref.url) });
+    } catch { Alert.alert('Enlace', ref.url); }
+  };
+  const marcarAplicado = async () => {
+    setAplicando(true);
+    try { const { data } = await referidosAPI.marcarAplicado(); setRef({ ...ref, canje: data.canje }); }
+    catch (err) { Alert.alert('Error', err?.response?.data?.error || 'No se pudo actualizar.'); }
+    finally { setAplicando(false); }
+  };
+
+  return (
+    <View style={styles.refCard}>
+      <View style={styles.refHero}>
+        <Text style={styles.refBadge}>{desc}% OFF</Text>
+        <Text style={styles.refHeroSub}>Regalá a un amigo · 1 sola vez</Text>
+      </View>
+
+      {!canje ? (
+        <View style={styles.refBody}>
+          <Text style={styles.refLead}>
+            Tenés un descuento del {desc}% para regalar a un amigo. Cuando lo canjee, te avisamos.
+          </Text>
+          <View style={styles.codeBox}>
+            <Text style={styles.codeText} selectable>{ref.code}</Text>
+          </View>
+          <TouchableOpacity style={styles.refPrimary} onPress={compartirWhatsApp} activeOpacity={0.85}>
+            <MaterialCommunityIcons name="whatsapp" size={19} color={COLORS.white} />
+            <Text style={styles.refPrimaryText}>Regalar por WhatsApp</Text>
+          </TouchableOpacity>
+          <View style={styles.refRow}>
+            <TouchableOpacity style={styles.refGhost} onPress={copiar} activeOpacity={0.8}>
+              <MaterialCommunityIcons name={copiado ? 'check' : 'content-copy'} size={17} color={COLORS.primaryDark} />
+              <Text style={styles.refGhostText}>{copiado ? '¡Copiado!' : 'Copiar link'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.refGhost} onPress={compartir} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="share-variant" size={17} color={COLORS.primaryDark} />
+              <Text style={styles.refGhostText}>Compartir</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.refBody}>
+          <View style={styles.canjeRow}>
+            <MaterialCommunityIcons
+              name={canje.estado === 'aplicado' ? 'check-decagram' : 'gift-open'}
+              size={22} color={canje.estado === 'aplicado' ? COLORS.success : COLORS.gold || COLORS.warning} />
+            <Text style={styles.canjeTitle}>
+              {canje.estado === 'aplicado' ? 'Descuento aplicado' : '¡Tu amigo canjeó el descuento!'}
+            </Text>
+          </View>
+          <Text style={styles.refLead}>
+            {canje.amigoNombre || 'Un amigo'}{canje.amigoEmail ? ` · ${canje.amigoEmail}` : ''}
+            {'\n'}Descuento del {canje.descuento || desc}% {canje.estado === 'aplicado' ? 'ya aplicado.' : 'listo para aplicar.'}
+          </Text>
+          {canje.estado !== 'aplicado' && (
+            <TouchableOpacity style={styles.refPrimary} onPress={marcarAplicado} disabled={aplicando} activeOpacity={0.85}>
+              {aplicando ? <ActivityIndicator color={COLORS.white} /> : (
+                <>
+                  <MaterialCommunityIcons name="check" size={19} color={COLORS.white} />
+                  <Text style={styles.refPrimaryText}>Marcar como aplicado</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
+  );
+};
 
 const InviteFamilyScreen = ({ route, navigation }) => {
   const { direccionId } = route.params;
@@ -177,6 +293,14 @@ const InviteFamilyScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Regalo del 30% a un amigo (referido, 1 sola vez) */}
+        <View style={styles.refDivider}>
+          <View style={styles.refLine} />
+          <Text style={styles.refDividerText}>REGALO PARA UN AMIGO</Text>
+          <View style={styles.refLine} />
+        </View>
+        <ReferralCard />
       </ScrollView>
     </SafeAreaView>
   );
@@ -210,6 +334,26 @@ const styles = StyleSheet.create({
   roleChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   roleText: { color: COLORS.textSecondary, fontWeight: '600' },
   roleTextActive: { color: COLORS.primaryDark },
+
+  // ─── Referido (regalo 30%) ───────────────────────────────────────────────
+  refDivider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, width: '100%', marginTop: SPACING['2xl'], marginBottom: SPACING.lg },
+  refLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  refDividerText: { fontSize: FONT_SIZES.xs, fontWeight: '700', letterSpacing: 0.8, color: COLORS.textMuted },
+  refCard: { width: '100%', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOWS.sm },
+  refHero: { backgroundColor: '#E0A82E', paddingVertical: SPACING.lg, alignItems: 'center' },
+  refBadge: { color: COLORS.white, fontSize: FONT_SIZES['2xl'], fontWeight: '900', letterSpacing: -0.5 },
+  refHeroSub: { color: 'rgba(255,255,255,0.95)', fontSize: FONT_SIZES.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginTop: 2 },
+  refBody: { padding: SPACING.base, gap: SPACING.sm },
+  refLead: { fontSize: FONT_SIZES.sm, color: COLORS.textSecondary, lineHeight: 20, textAlign: 'center' },
+  codeBox: { backgroundColor: COLORS.background, borderRadius: RADIUS.md, paddingVertical: SPACING.md, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed' },
+  codeText: { fontSize: FONT_SIZES.lg, fontWeight: '900', letterSpacing: 2, color: COLORS.primaryDark },
+  refPrimary: { flexDirection: 'row', gap: SPACING.sm, backgroundColor: COLORS.primary, height: 50, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', ...SHADOWS.blue },
+  refPrimaryText: { color: COLORS.white, fontSize: FONT_SIZES.base, fontWeight: '700' },
+  refRow: { flexDirection: 'row', gap: SPACING.sm },
+  refGhost: { flex: 1, flexDirection: 'row', gap: 6, height: 46, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  refGhostText: { color: COLORS.primaryDark, fontSize: FONT_SIZES.sm, fontWeight: '700' },
+  canjeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, justifyContent: 'center' },
+  canjeTitle: { fontSize: FONT_SIZES.base, fontWeight: '800', color: COLORS.text },
 });
 
 export default InviteFamilyScreen;

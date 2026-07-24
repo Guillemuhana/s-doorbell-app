@@ -5,6 +5,7 @@ const { mapUsuario } = require('../db/mappers');
 const { generateToken } = require('../middleware/auth');
 const { generateQRDataURL } = require('../services/qrService');
 const { initializeFirebase } = require('../config/firebase');
+const { esAdminPlataforma } = require('../config/admins');
 const logger = require('../config/logger');
 
 try { initializeFirebase(); } catch (e) { logger.warn('Firebase not initialized:', e.message); }
@@ -13,6 +14,9 @@ const publicUsuario = (u) => ({
   _id: u._id, nombre: u.nombre, apellido: u.apellido, email: u.email,
   telefono: u.telefono, foto_fachada: u.foto_fachada, pushToken: u.pushToken,
   forzarCambioPassword: u.forzarCambioPassword,
+  // isAdmin = operador de plataforma (crea edificios para clientes). La app lo
+  // usa para mostrar el panel de edificios (solo en PC).
+  isAdmin: esAdminPlataforma(u.email),
 });
 
 /**

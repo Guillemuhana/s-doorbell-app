@@ -241,6 +241,57 @@
     .loading-state { text-align: center; opacity: 0; animation: fadeIn 0.4s ease forwards; }
     .loading-title { font-size: 16px; color: var(--muted); margin-top: 16px; }
 
+    /* ─── Directorio de edificio (elegir unidad) ─────────────────────────── */
+    .dir-card {
+      width: 100%; background: var(--card);
+      border: 1px solid var(--line); border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(27,39,53,0.08), 0 2px 6px rgba(27,39,53,0.04);
+      opacity: 0; animation: fadeUp 0.6s ease 0.15s forwards;
+    }
+    .dir-head {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .dir-title { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); }
+    .dir-address { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+    .dir-hint { font-size: 13px; color: var(--muted); margin: 14px 0 8px; text-align: center; }
+    .dir-search {
+      width: 100%; height: 46px; margin: 0 0 6px;
+      background: var(--white); border: 1.5px solid var(--line);
+      border-radius: 12px; color: var(--ink); font-size: 15px;
+      padding: 0 14px; outline: none; font-family: var(--font);
+    }
+    .dir-search:focus { border-color: var(--brand); box-shadow: 0 0 0 4px rgba(46,155,224,0.12); }
+    .dir-list { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .unit-item {
+      display: flex; align-items: center; gap: 12px;
+      width: 100%; text-align: left;
+      padding: 14px 20px; background: none; border: none;
+      border-top: 1px solid var(--line);
+      cursor: pointer; font-family: var(--font);
+      transition: background 0.15s;
+    }
+    .unit-item:first-child { border-top: none; }
+    .unit-item:active { background: rgba(46,155,224,0.08); }
+    .unit-badge {
+      min-width: 46px; height: 42px; padding: 0 9px;
+      border-radius: 11px; background: rgba(46,155,224,0.12);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--brand-dark); font-weight: 800; font-size: 14px; flex-shrink: 0;
+    }
+    .unit-name { flex: 1; font-size: 15.5px; font-weight: 700; color: var(--ink); }
+    .unit-chevron { color: #C2CCD8; font-size: 22px; }
+    .dir-empty { padding: 26px 20px; text-align: center; color: var(--muted); font-size: 14px; }
+
+    /* Link "elegir otra unidad" arriba de la vista de una unidad */
+    .back-dir {
+      align-self: flex-start; background: none; border: none;
+      color: var(--brand); font-size: 14px; font-weight: 700;
+      cursor: pointer; padding: 4px 2px; font-family: var(--font);
+      display: flex; align-items: center; gap: 4px;
+    }
+
     /* Animations */
     @keyframes fadeDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: none; } }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
@@ -496,7 +547,12 @@
     // Por eso acá NO se usa optional chaining (?.) ni nullish (??), que exigen
     // iOS 13.4+. Mantener este archivo compatible con iOS 12.
     const API_BASE = ''; // Served from same domain
-    const qrId = window.location.pathname.split('/').filter(Boolean).pop();
+    // `qrId` puede cambiar: si el QR escaneado es la ENTRADA de un edificio, el
+    // visitante elige una unidad y pasamos a tocar el timbre de esa unidad.
+    let qrId = window.location.pathname.split('/').filter(Boolean).pop();
+    const entradaQrId = qrId;   // el QR original (directorio del edificio)
+    let enEdificio = false;     // true si el QR escaneado era un edificio
+    let directorio = null;      // { edificio, unidades } cacheado
 
     // Lee el nombre que escribió el visitante, tolerando que el input no exista.
     function leerNombreVisitante() {
@@ -506,6 +562,20 @@
 
     let casa = null;
     let ringing = false;
+
+    // Id persistente del navegador del visitante (para que el residente pueda
+    // bloquearlo). Se guarda en localStorage; si no se puede, va null.
+    function obtenerVisitorId() {
+      try {
+        var k = 'sd_vid';
+        var v = window.localStorage.getItem(k);
+        if (!v) {
+          v = 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+          window.localStorage.setItem(k, v);
+        }
+        return v;
+      } catch (e) { return null; }
+    }
 
     // Pide la ubicación del navegador. Devuelve { lat, lng, accuracy } o null.
     // `obligatoria` solo cambia el mensaje/tiempo de espera.
@@ -535,6 +605,14 @@
         clearTimeout(timer);
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || 'QR no válido');
+
+        // Entrada de edificio: mostrar el directorio de unidades para elegir.
+        if (data.esDirectorio) {
+          enEdificio = true;
+          directorio = data;
+          renderDirectorio(data);
+          return;
+        }
         casa = data.casa;
         render();
       } catch (err) {
@@ -579,7 +657,7 @@
       hint.textContent = 'Enviando timbrazo...';
 
       try {
-        const body = { visitorName };
+        const body = { visitorName, visitorId: obtenerVisitorId() };
         if (ubic) { body.lat = ubic.lat; body.lng = ubic.lng; body.accuracy = ubic.accuracy; }
         const res = await fetch(`${API_BASE}/api/visitor/${qrId}/ring`, {
           method: 'POST',
@@ -629,6 +707,9 @@
             <span class="brand-icon">🔔</span>
             <span class="brand-name">S-Doorbell</span>
           </div>
+
+          ${enEdificio && qrId !== entradaQrId
+            ? `<button class="back-dir" onclick="volverDirectorio()">‹ Elegir otra unidad</button>` : ''}
 
           <div class="house-card">
             ${casa.foto_fachada
@@ -721,6 +802,96 @@
         .replace(/'/g, '&#39;');
     }
 
+    // ─── Directorio de edificio (elegir unidad) ───────────────────────────────
+    function renderDirectorio(data) {
+      if (window.__cancelWatchdog) window.__cancelWatchdog();
+      const edi = data.edificio || {};
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="brand">
+            <span class="brand-icon">🔔</span>
+            <span class="brand-name">S-Doorbell</span>
+          </div>
+
+          <div class="dir-card">
+            <div class="dir-head">
+              <div class="house-info-label">Timbre de entrada</div>
+              <div class="dir-title">${escapeHtml(edi.nombre || 'Edificio')}</div>
+              ${edi.direccion ? `<div class="dir-address">📍 ${escapeHtml(edi.direccion)}</div>` : ''}
+            </div>
+            <input type="text" id="dir-search" class="dir-search" style="margin:14px 16px 10px;width:calc(100% - 32px);"
+              placeholder="Buscar unidad…" oninput="filtrarUnidades(this.value)" autocomplete="off" />
+            <div class="dir-list" id="dir-list"></div>
+          </div>
+
+          <p class="ring-hint">Elegí la unidad a la que querés tocar el timbre.</p>
+
+          <p class="footer">
+            Powered by <a href="#">S-Doorbell</a> · Timbre digital inteligente
+          </p>
+        </div>
+      `;
+      pintarUnidades(data.unidades || []);
+    }
+
+    function pintarUnidades(unidades) {
+      const cont = document.getElementById('dir-list');
+      if (!cont) return;
+      if (!unidades.length) {
+        cont.innerHTML = `<div class="dir-empty">No hay unidades disponibles todavía.</div>`;
+        return;
+      }
+      cont.innerHTML = unidades.map(function (u) {
+        const etiqueta = u.unidad ? escapeHtml(u.unidad) : '🔔';
+        return `<button class="unit-item" onclick="elegirUnidad('${escapeHtml(u.qrId)}')">
+            <span class="unit-badge">${etiqueta}</span>
+            <span class="unit-name">${escapeHtml(u.nombre || 'Unidad')}</span>
+            <span class="unit-chevron">›</span>
+          </button>`;
+      }).join('');
+    }
+
+    function filtrarUnidades(q) {
+      if (!directorio) return;
+      const term = String(q || '').toLowerCase().trim();
+      const list = (directorio.unidades || []).filter(function (u) {
+        return !term
+          || (u.nombre && u.nombre.toLowerCase().indexOf(term) !== -1)
+          || (u.unidad && u.unidad.toLowerCase().indexOf(term) !== -1);
+      });
+      pintarUnidades(list);
+    }
+
+    // Muestra un spinner mientras carga la unidad/directorio elegido.
+    function mostrarCargando(texto) {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="page-content">
+          <div class="loading-state">
+            <div class="spinner" style="margin: 0 auto;"></div>
+            <p class="loading-title">${escapeHtml(texto || 'Cargando…')}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function elegirUnidad(unidadQrId) {
+      if (!unidadQrId) return;
+      qrId = unidadQrId;
+      ringing = false;
+      mostrarCargando('Cargando timbre…');
+      loadCasa();
+    }
+
+    function volverDirectorio() {
+      qrId = entradaQrId;
+      ringing = false;
+      if (directorio) { renderDirectorio(directorio); return; }
+      mostrarCargando('Cargando…');
+      loadCasa();
+    }
+
     // ═══ VIDEOLLAMADA (WebRTC) ═════════════════════════════════════════════════
     let pc = null;            // RTCPeerConnection
     let localStream = null;
@@ -771,7 +942,7 @@
         // 1) Crear la sesión y notificar a los residentes.
         const startRes = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorName }),
+          body: JSON.stringify({ visitorName, visitorId: obtenerVisitorId() }),
         });
         const startData = await startRes.json();
         if (!startRes.ok || !startData.success) throw new Error(startData.error || 'No se pudo iniciar la llamada');
@@ -956,7 +1127,7 @@
       try {
         const res = await fetch(`${API_BASE}/api/calls/start/${qrId}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ visitorName: visitorName, modo: 'chat' }),
+          body: JSON.stringify({ visitorName: visitorName, modo: 'chat', visitorId: obtenerVisitorId() }),
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || 'No se pudo iniciar el chat');

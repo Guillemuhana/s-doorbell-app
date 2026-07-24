@@ -19,8 +19,29 @@ const mapUsuario = (r) => r && ({
 const mapDireccion = (r, extra = {}) => r && ({
   _id: r.id,
   owner: r.owner_id,
+  parentId: r.parent_id || null,
   nombre: r.nombre,
   tipo: r.tipo,
+  unidad: r.unidad || null,
+  direccion: r.direccion,
+  foto: r.foto,
+  lat: r.lat,
+  lng: r.lng,
+  activa: r.activa,
+  createdAt: r.created_at,
+  ...extra,
+});
+
+// Un edificio/complejo es una `direccion` (tipo 'Edificio'); lo mapeamos con
+// campos propios del panel de administración. La CATEGORÍA del cliente
+// (Edificio/Complejo/Barrio/Casa) se guarda en la columna `unidad` de la fila
+// contenedora (que en un edificio no se usa para otra cosa).
+const mapEdificio = (r, extra = {}) => r && ({
+  _id: r.id,
+  owner: r.owner_id,
+  nombre: r.nombre,
+  tipo: r.tipo,
+  categoria: r.unidad || 'Edificio',
   direccion: r.direccion,
   foto: r.foto,
   lat: r.lat,
@@ -59,6 +80,8 @@ const mapEvento = (r) => {
     visitorAccuracy: r.visitor_accuracy,
     distanciaMetros: r.distancia_metros,
     ubicacionVerificada: r.ubicacion_verificada,
+    visitorId: (r.metadata && r.metadata.visitorId) || null,
+    blocked: !!(r.metadata && r.metadata.blocked),
     direccionId: dir ? { _id: dir.id, nombre: dir.nombre } : null,
     timbreId: tim ? { _id: tim.id, nombre: tim.nombre } : null,
     createdAt: r.created_at,
@@ -89,4 +112,17 @@ const mapCallSession = (r) => r && ({
   endedAt: r.ended_at,
 });
 
-module.exports = { mapUsuario, mapDireccion, mapTimbre, mapEvento, mapInvitacion, mapCallSession };
+const mapReferido = (r) => r && ({
+  _id: r.id,
+  referrerId: r.referrer_id,
+  code: r.code,
+  amigoNombre: r.amigo_nombre,
+  amigoEmail: r.amigo_email,
+  descuento: r.descuento,
+  estado: r.estado,
+  createdAt: r.created_at,
+  redeemedAt: r.redeemed_at,
+  appliedAt: r.applied_at,
+});
+
+module.exports = { mapUsuario, mapDireccion, mapEdificio, mapTimbre, mapEvento, mapInvitacion, mapCallSession, mapReferido };
