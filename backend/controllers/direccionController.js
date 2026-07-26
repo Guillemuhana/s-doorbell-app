@@ -3,6 +3,7 @@ const { getSupabase } = require('../config/supabase');
 const { mapDireccion, mapTimbre } = require('../db/mappers');
 const { generateQRDataURL } = require('../services/qrService');
 const { uploadImagen, borrarImagen } = require('../services/storageService');
+const { geocodeDireccion } = require('../services/geocodeService');
 const { getRol } = require('../utils/access');
 
 /**
@@ -52,6 +53,15 @@ const createDireccion = async (req, res, next) => {
       .insert({ owner_id: req.usuario._id, nombre, tipo: tipo || 'Casa', direccion: direccion || '' })
       .select().single();
     if (error) throw error;
+
+    // Geocodificar la dirección escrita → punto de referencia del geofence.
+    if (direccion && direccion.trim()) {
+      const geo = await geocodeDireccion(direccion);
+      if (geo) {
+        await sb.from('direcciones').update({ lat: geo.lat, lng: geo.lng }).eq('id', dir.id);
+        dir.lat = geo.lat; dir.lng = geo.lng;
+      }
+    }
 
     await sb.from('memberships').insert({ usuario_id: req.usuario._id, direccion_id: dir.id, rol: 'dueño' });
     const { data: timbre } = await sb.from('timbres')
@@ -125,6 +135,18 @@ const updateDireccion = async (req, res, next) => {
     updates.updated_at = new Date().toISOString();
 
     const sb = getSupabase();
+
+    // Si cambió la dirección escrita y NO se mandaron coordenadas manuales,
+    // geocodificamos — pero solo si todavía no hay una ubicación fijada (para no
+    // pisar un "estoy en casa" por GPS, que es más preciso).
+    if (updates.direccion !== undefined && req.body.lat === undefined && req.body.lng === undefined) {
+      const { data: actual } = await sb.from('direcciones').select('lat,lng').eq('id', req.params.id).maybeSingle();
+      if (!actual || actual.lat == null || actual.lng == null) {
+        const geo = await geocodeDireccion(updates.direccion);
+        if (geo) { updates.lat = geo.lat; updates.lng = geo.lng; }
+      }
+    }
+
     const { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
     if (error) throw error;
     res.json({ success: true, direccion: mapDireccion(dir) });
@@ -171,6 +193,39 @@ const uploadFotoDireccion = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/direcciones/:id/geocodificar (solo dueño)
+ * Fuerza el cálculo del punto de referencia del geofence a partir de la
+ * dirección escrita (sobrescribe lat/lng, aunque ya hubiera).
+ */
+const geocodificarDireccion = async (req, res, next) => {
+  try {
+    const rol = await getRol(req.usuario._id, req.params.id);
+    if (rol !== 'dueño') return res.status(403).json({ error: 'Solo el dueño puede ubicar la dirección.' });
+
+    const sb = getSupabase();
+    // Se puede pasar una dirección nueva en el body, o usar la ya guardada.
+    let texto = (req.body && req.body.direccion) ? String(req.body.direccion).trim() : '';
+    if (!texto) {
+      const { data: d } = await sb.from('direcciones').select('direccion').eq('id', req.params.id).maybeSingle();
+      texto = (d && d.direccion) ? d.direccion : '';
+    }
+    if (!texto) return res.status(422).json({ error: 'Cargá primero la dirección (calle y número) para poder ubicarla.' });
+
+    const geo = await geocodeDireccion(texto);
+    if (!geo) return res.status(404).json({ error: 'No pudimos ubicar esa dirección. Revisá que esté bien escrita (calle, número, ciudad).' });
+
+    const updates = { lat: geo.lat, lng: geo.lng, updated_at: new Date().toISOString() };
+    if (req.body && req.body.direccion) updates.direccion = texto;
+    const { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    res.json({ success: true, direccion: mapDireccion(dir), ubicacion: { lat: geo.lat, lng: geo.lng, display: geo.display } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   listDirecciones, createDireccion, getDireccion, updateDireccion, deleteDireccion, uploadFotoDireccion,
+  geocodificarDireccion,
 };

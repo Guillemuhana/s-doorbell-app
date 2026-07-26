@@ -69,6 +69,8 @@ export const direccionesAPI = {
   create: (data) => api.post('/direcciones', data),
   update: (id, data) => api.put(`/direcciones/${id}`, data),
   delete: (id) => api.delete(`/direcciones/${id}`),
+  // Geocodifica la dirección escrita → punto de referencia del geofence.
+  geocodificar: (id, data = {}) => api.post(`/direcciones/${id}/geocodificar`, data),
   uploadFoto: (id, formData) =>
     api.post(`/direcciones/${id}/foto`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

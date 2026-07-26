@@ -10,6 +10,7 @@ const {
   updateDireccion,
   deleteDireccion,
   uploadFotoDireccion,
+  geocodificarDireccion,
 } = require('../controllers/direccionController');
 const { crearTimbre } = require('../controllers/timbreController');
 const {
@@ -32,6 +33,7 @@ router.get('/:id', getDireccion);
 router.put('/:id', updateDireccion);
 router.delete('/:id', deleteDireccion);
 router.post('/:id/foto', upload.single('foto'), uploadFotoDireccion);
+router.post('/:id/geocodificar', geocodificarDireccion);
 
 // Timbres de la dirección
 router.post('/:id/timbres', crearTimbre);

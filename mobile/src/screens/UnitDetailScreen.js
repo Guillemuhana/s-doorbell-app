@@ -107,6 +107,23 @@ const UnitDetailScreen = ({ route, navigation }) => {
     ]);
   };
 
+  // Ubica el timbre usando la dirección escrita (geocodificación). Es la forma
+  // más cómoda: no hace falta ir hasta la puerta. La precisión depende de qué
+  // tan completa esté la dirección (calle + número + ciudad).
+  const ubicarPorDireccion = async (dir) => {
+    if (!esDueno) return;
+    if (!dir.direccion || !dir.direccion.trim()) {
+      return Alert.alert('Falta la dirección', 'Cargá la calle, número y ciudad en Ajustes de la unidad para poder ubicarla.');
+    }
+    try {
+      await direccionesAPI.geocodificar(direccionId, {});
+      Alert.alert('✅ Ubicado', 'Usamos la dirección que cargaste como referencia. Al visitante se le va a pedir estar cerca de ese punto.');
+      fetchData();
+    } catch (err) {
+      Alert.alert('No se pudo ubicar', err?.response?.data?.error || 'Revisá que la dirección esté bien escrita (calle, número, ciudad).');
+    }
+  };
+
   const agregarTimbre = () => {
     if (!esDueno) return Alert.alert('Solo el dueño puede agregar timbres.');
     Alert.alert('Nuevo timbre', '¿Agregar un timbre "Puerta"?', [
@@ -233,20 +250,31 @@ const UnitDetailScreen = ({ route, navigation }) => {
                 </View>
               )}
               {esDueno && t.modoGeo && (
-                <TouchableOpacity style={styles.geoLocRow} onPress={fijarUbicacion} activeOpacity={0.8}>
-                  {direccion.lat != null && direccion.lng != null ? (
-                    <>
-                      <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.success} />
-                      <Text style={styles.geoLocOk}>Casa geolocalizada · el geofence está activo</Text>
-                      <Text style={styles.geoLocBtn}>Actualizar</Text>
-                    </>
-                  ) : (
-                    <>
-                      <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.warning} />
-                      <Text style={styles.geoLocWarn}>Fijá la ubicación de tu casa (estoy acá) para que funcione</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                <View style={styles.geoLocWrap}>
+                  <View style={styles.geoStatus}>
+                    {direccion.lat != null && direccion.lng != null ? (
+                      <>
+                        <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.success} />
+                        <Text style={styles.geoLocOk}>Ubicación fijada · el geofence está activo</Text>
+                      </>
+                    ) : (
+                      <>
+                        <MaterialCommunityIcons name="crosshairs-gps" size={18} color={COLORS.warning} />
+                        <Text style={styles.geoLocWarn}>Fijá la ubicación del timbre para que funcione</Text>
+                      </>
+                    )}
+                  </View>
+                  <View style={styles.geoBtns}>
+                    <TouchableOpacity style={styles.geoBtn} onPress={() => ubicarPorDireccion(direccion)} activeOpacity={0.85}>
+                      <MaterialCommunityIcons name="map-marker-check" size={16} color={COLORS.white} />
+                      <Text style={styles.geoBtnText}>Ubicar por dirección</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.geoBtn, styles.geoBtnAlt]} onPress={fijarUbicacion} activeOpacity={0.85}>
+                      <MaterialCommunityIcons name="crosshairs-gps" size={16} color={COLORS.primaryDark} />
+                      <Text style={styles.geoBtnAltText}>Estoy en la puerta</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               )}
             </View>
           ))}
@@ -339,6 +367,18 @@ const styles = StyleSheet.create({
   geoLocOk: { flex: 1, fontSize: FONT_SIZES.xs, color: COLORS.success, fontWeight: '600' },
   geoLocWarn: { flex: 1, fontSize: FONT_SIZES.xs, color: COLORS.warning, fontWeight: '600' },
   geoLocBtn: { fontSize: FONT_SIZES.xs, color: COLORS.primaryDark, fontWeight: '700' },
+  geoLocWrap: {
+    backgroundColor: COLORS.background, borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border, borderTopWidth: 0,
+    borderTopLeftRadius: 0, borderTopRightRadius: 0, marginTop: -1, gap: SPACING.sm,
+  },
+  geoStatus: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  geoBtns: { flexDirection: 'row', gap: SPACING.sm },
+  geoBtn: { flex: 1, flexDirection: 'row', gap: 5, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  geoBtnText: { color: COLORS.white, fontWeight: '700', fontSize: FONT_SIZES.xs },
+  geoBtnAlt: { backgroundColor: COLORS.surface, borderWidth: 1.5, borderColor: COLORS.border },
+  geoBtnAltText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: FONT_SIZES.xs },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: COLORS.brand, fontWeight: '800', fontSize: FONT_SIZES.md },
 });
