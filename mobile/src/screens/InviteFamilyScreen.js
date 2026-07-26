@@ -8,7 +8,76 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { direccionesAPI, referidosAPI } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 import { COLORS, SPACING, FONT_SIZES, RADIUS, SHADOWS } from '../constants/theme';
+
+const rolLabel = (r) => (r === 'dueño' ? 'Usuario principal' : r === 'colaborador' ? 'Colaborador' : 'Familiar');
+
+// Lista de miembros de la casa (usuario principal + familiares).
+const MembersCard = ({ direccionId }) => {
+  const { usuario } = useAuth();
+  const [miembros, setMiembros] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const cargar = useCallback(async () => {
+    try {
+      const { data } = await direccionesAPI.getFamiliares(direccionId);
+      setMiembros(data.familiares || []);
+    } catch { /* noop */ } finally { setLoading(false); }
+  }, [direccionId]);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const soyDueno = miembros.some((m) => m.rol === 'dueño' && m.usuario?._id === usuario?._id);
+  // El usuario principal (dueño) siempre primero.
+  const ordenados = [...miembros].sort((a, b) => (a.rol === 'dueño' ? -1 : b.rol === 'dueño' ? 1 : 0));
+
+  const quitar = (m) => {
+    Alert.alert('Quitar de la casa', `¿Sacar a ${m.nombreCompleto}? Va a dejar de recibir los timbrazos.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Quitar', style: 'destructive', onPress: async () => {
+          try { await direccionesAPI.eliminarFamiliar(direccionId, m.membershipId); cargar(); }
+          catch (err) { Alert.alert('Error', err?.response?.data?.error || 'No se pudo quitar.'); }
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View style={styles.membersCard}>
+      <View style={styles.membersHead}>
+        <Text style={styles.membersTitle}>En esta casa</Text>
+        <View style={styles.membersCount}>
+          <MaterialCommunityIcons name="account-group" size={13} color={COLORS.primaryDark} />
+          <Text style={styles.membersCountText}>{miembros.length}</Text>
+        </View>
+      </View>
+      {loading ? (
+        <ActivityIndicator color={COLORS.primary} style={{ paddingVertical: SPACING.base }} />
+      ) : ordenados.map((m) => (
+        <View key={m.membershipId} style={styles.memberRow}>
+          <View style={[styles.memberAvatar, m.rol === 'dueño' && { backgroundColor: COLORS.primary }]}>
+            <Text style={[styles.memberAvatarText, m.rol === 'dueño' && { color: COLORS.white }]}>
+              {m.usuario?.nombre?.[0]?.toUpperCase() || '?'}
+            </Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.memberName}>{m.nombreCompleto}</Text>
+            <Text style={styles.memberRol}>{rolLabel(m.rol)}</Text>
+          </View>
+          {m.rol === 'dueño' ? (
+            <MaterialCommunityIcons name="shield-crown" size={18} color={COLORS.primary} />
+          ) : soyDueno ? (
+            <TouchableOpacity onPress={() => quitar(m)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons name="account-remove-outline" size={20} color={COLORS.error} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ))}
+    </View>
+  );
+};
 
 const mensajeInvite = (link) => `Te invito a atender el timbre en S-Doorbell 🔔\n${link}`;
 const mensajeReferido = (desc, link) => `¡Te regalo ${desc}% de descuento en S-Doorbell! 🎁 Es por única vez, activalo acá:\n${link}`;
@@ -208,11 +277,10 @@ const InviteFamilyScreen = ({ route, navigation }) => {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.illustration}>
-          <MaterialCommunityIcons name="account-group" size={110} color={COLORS.primary} />
-        </View>
+        {/* Miembros actuales de la casa (usuario principal + familiares) */}
+        <MembersCard direccionId={direccionId} />
 
-        <Text style={styles.title}>{link ? '¡Invitación lista!' : 'Invitá familiares'}</Text>
+        <Text style={styles.title}>{link ? '¡Invitación lista!' : 'Sumar a la casa'}</Text>
         <Text style={styles.desc}>
           {link
             ? 'Compartí este enlace con la persona. Al abrirlo va a poder unirse y recibir los timbrazos de esta dirección.'
@@ -334,6 +402,18 @@ const styles = StyleSheet.create({
   roleChipActive: { borderColor: COLORS.primary, backgroundColor: COLORS.primarySoft },
   roleText: { color: COLORS.textSecondary, fontWeight: '600' },
   roleTextActive: { color: COLORS.primaryDark },
+
+  // ─── Miembros de la casa ─────────────────────────────────────────────────
+  membersCard: { width: '100%', backgroundColor: COLORS.surface, borderRadius: RADIUS.xl, borderWidth: 1, borderColor: COLORS.border, padding: SPACING.base, marginBottom: SPACING.lg, ...SHADOWS.sm },
+  membersHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  membersTitle: { fontSize: FONT_SIZES.md, fontWeight: '800', color: COLORS.text },
+  membersCount: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.primarySoft, borderRadius: RADIUS.full, paddingHorizontal: 9, paddingVertical: 3 },
+  membersCountText: { fontSize: FONT_SIZES.xs, fontWeight: '800', color: COLORS.primaryDark },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.border },
+  memberAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  memberAvatarText: { color: COLORS.brand, fontWeight: '800', fontSize: FONT_SIZES.md },
+  memberName: { fontSize: FONT_SIZES.base, fontWeight: '700', color: COLORS.text },
+  memberRol: { fontSize: FONT_SIZES.xs, color: COLORS.textMuted, marginTop: 1 },
 
   // ─── Referido (regalo 30%) ───────────────────────────────────────────────
   refDivider: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, width: '100%', marginTop: SPACING['2xl'], marginBottom: SPACING.lg },
