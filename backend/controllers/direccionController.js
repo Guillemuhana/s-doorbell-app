@@ -54,15 +54,6 @@ const createDireccion = async (req, res, next) => {
       .select().single();
     if (error) throw error;
 
-    // Geocodificar la dirección escrita → punto de referencia del geofence.
-    if (direccion && direccion.trim()) {
-      const geo = await geocodeDireccion(direccion);
-      if (geo) {
-        await sb.from('direcciones').update({ lat: geo.lat, lng: geo.lng }).eq('id', dir.id);
-        dir.lat = geo.lat; dir.lng = geo.lng;
-      }
-    }
-
     await sb.from('memberships').insert({ usuario_id: req.usuario._id, direccion_id: dir.id, rol: 'dueño' });
     const { data: timbre } = await sb.from('timbres')
       .insert({ direccion_id: dir.id, nombre: 'Puerta', tipo: 'Timbre particular' }).select().single();
@@ -132,22 +123,19 @@ const updateDireccion = async (req, res, next) => {
     if (req.body.activa !== undefined) updates.activa = req.body.activa;
     if (req.body.lat !== undefined) updates.lat = req.body.lat;
     if (req.body.lng !== undefined) updates.lng = req.body.lng;
+    // Coordenadas explícitas (vienen del GPS "estoy en la puerta") → precisas:
+    // habilitan el bloqueo por distancia.
+    if (req.body.lat !== undefined && req.body.lng !== undefined) updates.geo_preciso = true;
     updates.updated_at = new Date().toISOString();
 
     const sb = getSupabase();
-
-    // Si cambió la dirección escrita y NO se mandaron coordenadas manuales,
-    // geocodificamos — pero solo si todavía no hay una ubicación fijada (para no
-    // pisar un "estoy en casa" por GPS, que es más preciso).
-    if (updates.direccion !== undefined && req.body.lat === undefined && req.body.lng === undefined) {
-      const { data: actual } = await sb.from('direcciones').select('lat,lng').eq('id', req.params.id).maybeSingle();
-      if (!actual || actual.lat == null || actual.lng == null) {
-        const geo = await geocodeDireccion(updates.direccion);
-        if (geo) { updates.lat = geo.lat; updates.lng = geo.lng; }
-      }
+    let { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
+    // Tolerante: si la columna geo_preciso no existe aún (migración pendiente),
+    // reintentar sin ella.
+    if (error && updates.geo_preciso !== undefined) {
+      delete updates.geo_preciso;
+      ({ data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single());
     }
-
-    const { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
     if (error) throw error;
     res.json({ success: true, direccion: mapDireccion(dir) });
   } catch (error) {
@@ -215,9 +203,15 @@ const geocodificarDireccion = async (req, res, next) => {
     const geo = await geocodeDireccion(texto);
     if (!geo) return res.status(404).json({ error: 'No pudimos ubicar esa dirección. Revisá que esté bien escrita (calle, número, ciudad).' });
 
-    const updates = { lat: geo.lat, lng: geo.lng, updated_at: new Date().toISOString() };
+    // Geocodificado = aproximado (nivel de calle): NO habilita el bloqueo por
+    // distancia (geo_preciso=false), para no rechazar visitantes legítimos.
+    const updates = { lat: geo.lat, lng: geo.lng, geo_preciso: false, updated_at: new Date().toISOString() };
     if (req.body && req.body.direccion) updates.direccion = texto;
-    const { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
+    let { data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single();
+    if (error && updates.geo_preciso !== undefined) {
+      delete updates.geo_preciso;
+      ({ data: dir, error } = await sb.from('direcciones').update(updates).eq('id', req.params.id).select().single());
+    }
     if (error) throw error;
     res.json({ success: true, direccion: mapDireccion(dir), ubicacion: { lat: geo.lat, lng: geo.lng, display: geo.display } });
   } catch (error) {

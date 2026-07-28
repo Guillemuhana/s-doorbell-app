@@ -143,7 +143,11 @@ const ringDoorbell = async (req, res, next) => {
         // funciona parado en la puerta. Se descuenta el margen de error del GPS
         // (capado) para no rechazar a un visitante legítimo.
         const margen = typeof accuracy === 'number' && accuracy > 0 ? Math.min(accuracy, 120) : 0;
-        if (timbre.modo_geo && (distancia - margen) > UMBRAL_VERIFICADO) {
+        // El bloqueo por distancia SOLO aplica si la ubicación de la casa fue
+        // fijada con GPS parado en la puerta (`geo_preciso`). Una dirección
+        // geocodificada por texto es aproximada (nivel de calle) y NO debe
+        // rechazar a un visitante legítimo — solo se registra la distancia.
+        if (timbre.modo_geo && direccion.geo_preciso && (distancia - margen) > UMBRAL_VERIFICADO) {
           return res.status(403).json({
             error: 'Estás demasiado lejos de la puerta para tocar este timbre.',
             lejos: true,

@@ -27,6 +27,7 @@ const mapDireccion = (r, extra = {}) => r && ({
   foto: r.foto,
   lat: r.lat,
   lng: r.lng,
+  geoPreciso: !!r.geo_preciso,
   activa: r.activa,
   createdAt: r.created_at,
   ...extra,
